@@ -1,0 +1,254 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0b0f">
+<title>BLACKAI - Safety Command Center</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#0b0b0f;color:#f5f5f7;
+ font-family:Arial,sans-serif;padding:22px 18px 100px;
+}
+header{display:flex;justify-content:space-between;align-items:center}
+.brand{color:#ed354d;font-weight:900;letter-spacing:3px}
+.status{background:#171b23;padding:10px 14px;border-radius:25px;color:#70d6a1}
+h1{font-size:30px;margin:28px 0 15px}
+.location{
+ background:#171b23;border:1px solid #292e3a;
+ padding:17px;border-radius:15px;color:#b9c0ce;
+}
+.sos-wrap{text-align:center;padding:55px 0 35px}
+.sos{
+ width:235px;height:235px;border-radius:50%;
+ border:9px solid #b90028;background:#e93249;
+ color:white;font-size:39px;font-weight:900;
+ box-shadow:0 0 0 15px #211018;cursor:pointer;
+}
+.sos small{display:block;font-size:12px;letter-spacing:3px;margin-top:12px}
+.note{color:#89909e;line-height:1.6;margin-top:35px}
+h2{font-size:22px;margin-top:35px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.action{
+ background:#171b23;border:1px solid #292e3a;
+ border-radius:17px;padding:22px 16px;color:white;
+ text-align:left;min-height:120px;cursor:pointer;
+}
+.action b{display:block;margin-top:18px;font-size:17px}
+.action span{display:block;color:#929aaa;margin-top:9px}
+.contact{
+ background:#171b23;padding:17px;border-radius:15px;
+ margin-top:12px;display:flex;justify-content:space-between;
+}
+button{font-family:inherit}
+.add{
+ background:#ed354d;color:white;border:0;border-radius:10px;
+ padding:13px 17px;margin-top:15px;font-weight:bold;
+}
+input{
+ width:100%;padding:14px;background:#171b23;color:white;
+ border:1px solid #444;border-radius:10px;margin-top:10px;
+}
+.bottom{
+ position:fixed;bottom:0;left:0;right:0;
+ background:#171b23;border-top:1px solid #303440;
+ display:flex;justify-content:space-around;padding:15px 3px;
+}
+.bottom button{background:none;border:0;color:#9ba4b3;font-size:12px}
+.bottom button.active{color:#ed354d}
+#message{color:#f5b8c0;margin-top:15px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<header>
+ <div class="brand">BLACKAI / COMMAND CENTER</div>
+ <div class="status">● Protected</div>
+</header>
+
+<h1>Stay ready, BLACKAI.</h1>
+
+<div class="location" id="location">
+ 📍 Location is permission-controlled
+</div>
+
+<div class="sos-wrap">
+ <button class="sos" onclick="startSOS()">
+  ⚠<br>SOS
+  <small>TAP FOR HELP</small>
+ </button>
+ <p class="note">A 3-second cancel window protects against accidental activation.</p>
+ <div id="message"></div>
+</div>
+
+<h2>Quick actions</h2>
+<div class="actions">
+ <button class="action" onclick="callContact()">
+  <span>📞</span><b>Call contact</b>
+  <span>Fast dial</span>
+ </button>
+ <button class="action" onclick="shareLocation()">
+  <span>➤</span><b>Share location</b>
+  <span>Share with circle</span>
+ </button>
+ <button class="action" onclick="voiceAlert()">
+  <span>🎙</span><b>Voice alert</b>
+  <span>Browser permission</span>
+ </button>
+ <button class="action" onclick="emergencyPhoto()">
+  <span>📷</span><b>Emergency photo</b>
+  <span>Choose before sharing</span>
+ </button>
+</div>
+
+<h2>Trusted circle</h2>
+<div id="contacts"></div>
+<input id="contactName" placeholder="Contact name">
+<input id="contactPhone" type="tel" placeholder="Phone number">
+<button class="add" onclick="addContact()">+ Add contact</button>
+
+<h2>Recent activity</h2>
+<div class="contact" id="activity">No recent activity</div>
+
+<div class="bottom">
+ <button class="active" onclick="home()">⌂<br>Home</button>
+ <button onclick="shareLocation()">➤<br>Location</button>
+ <button onclick="showContacts()">♟<br>Contacts</button>
+ <button onclick="profile()">●<br>Profile</button>
+</div>
+
+<script>
+let contacts=[];
+let currentLocation=null;
+
+function log(text){
+ document.getElementById("activity").textContent=text;
+}
+
+function addContact(){
+ const name=document.getElementById("contactName").value.trim();
+ const phone=document.getElementById("contactPhone").value.trim();
+ if(!name || !/^[+0-9 ]{7,16}$/.test(phone)){
+  alert("Enter a valid contact name and phone number.");
+  return;
+ }
+ contacts.push({name,phone});
+ renderContacts();
+ document.getElementById("contactName").value="";
+ document.getElementById("contactPhone").value="";
+}
+
+function renderContacts(){
+ document.getElementById("contacts").innerHTML="";
+ contacts.forEach((c,i)=>{
+  const div=document.createElement("div");
+  div.className="contact";
+  const info=document.createElement("span");
+  info.textContent=c.name+" - Emergency contact";
+  const call=document.createElement("a");
+  call.href="tel:"+c.phone.replace(/\s/g,"");
+  call.textContent="Call";
+  call.style.color="#ed354d";
+  div.append(info,call);
+  document.getElementById("contacts").appendChild(div);
+ });
+}
+
+function callContact(){
+ if(!contacts.length){alert("Add a trusted contact first.");return;}
+ location.href="tel:"+contacts[0].phone.replace(/\s/g,"");
+}
+
+function getLocation(){
+ return new Promise((resolve,reject)=>{
+  if(!navigator.geolocation){reject();return;}
+  navigator.geolocation.getCurrentPosition(
+   p=>{
+    currentLocation={
+     lat:p.coords.latitude,
+     lng:p.coords.longitude
+    };
+    document.getElementById("location").textContent=
+     "📍 Location available";
+    resolve(currentLocation);
+   },reject,{enableHighAccuracy:true,timeout:12000}
+  );
+ });
+}
+
+async function shareLocation(){
+ try{
+  const p=await getLocation();
+  const url="https://maps.google.com/?q="+p.lat+","+p.lng;
+  if(navigator.share){
+   await navigator.share({title:"My location",text:"My current location: "+url});
+  }else{
+   prompt("Copy this location link:",url);
+  }
+ }catch(e){
+  alert("Location unavailable. Allow location permission and try again.");
+ }
+}
+
+async function startSOS(){
+ const msg=document.getElementById("message");
+ msg.textContent="SOS will start in 3 seconds. Tap again to cancel.";
+ const button=document.querySelector(".sos");
+ button.disabled=true;
+ let cancelled=false;
+ button.onclick=()=>{
+  cancelled=true;
+  msg.textContent="SOS cancelled.";
+ };
+ await new Promise(r=>setTimeout(r,3000));
+ button.disabled=false;
+ button.onclick=startSOS;
+ if(cancelled)return;
+ if(!contacts.length){
+  msg.textContent="Please add a trusted contact first.";
+  return;
+ }
+ try{
+  const p=await getLocation();
+  const map="https://maps.google.com/?q="+p.lat+","+p.lng;
+  const text="EMERGENCY! I need help. My location: "+map;
+  const numbers=contacts.map(c=>c.phone.replace(/\s/g,"")).join(",");
+  msg.textContent="Emergency message ready. Review and send it from your messaging app.";
+  log("SOS message prepared - "+new Date().toLocaleTimeString());
+  location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
+ }catch(e){
+  msg.textContent="Location unavailable. SOS message was not sent.";
+ }
+}
+
+function voiceAlert(){
+ if(!("speechSynthesis" in window)){
+  alert("Voice feature unavailable.");
+  return;
+ }
+ speechSynthesis.speak(new SpeechSynthesisUtterance("This is an emergency. Please help me."));
+}
+
+function emergencyPhoto(){
+ const input=document.createElement("input");
+ input.type="file";
+ input.accept="image/*";
+ input.capture="environment";
+ input.onchange=()=>{
+  if(input.files.length){
+   alert("Photo selected. Review it before sharing.");
+  }
+ };
+ input.click();
+}
+function home(){window.scrollTo({top:0,behavior:"smooth"});}
+function showContacts(){
+ document.querySelector("h2:nth-of-type(2)").scrollIntoView({behavior:"smooth"});
+}
+function profile(){alert("BLACKAI User Profile - Setup coming soon.");}
+</script>
+</body>
+  </html>
+    
