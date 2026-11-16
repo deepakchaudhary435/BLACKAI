@@ -120,7 +120,16 @@ input{
 </div>
 
 <script>
-let contacts=[];
+let contacts = [];
+
+try {
+  const saved = JSON.parse(
+    localStorage.getItem("blackai_contacts") || "[]"
+  );
+  if (Array.isArray(saved)) contacts = saved;
+} catch (e) {
+  contacts = [];
+}
 let currentLocation=null;
 
 function log(text){
@@ -138,6 +147,10 @@ function addContact(){
   return;
  }
  contacts.push({name,phone});
+ localStorage.setItem(
+  "blackai_contacts",
+  JSON.stringify(contacts)
+);
  renderContacts();
  document.getElementById("contactName").value="";
  document.getElementById("contactPhone").value="";
@@ -158,7 +171,7 @@ function renderContacts(){
   document.getElementById("contacts").appendChild(div);
  });
 }
-
+renderContacts();
 function callContact(){
  if(!contacts.length){alert("Add a trusted contact first.");return;}
  location.href="tel:"+contacts[0].phone.replace(/\s/g,"");
