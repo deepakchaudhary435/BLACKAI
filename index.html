@@ -133,6 +133,9 @@ function addContact(){
  if(!name || !/^[+0-9 ]{7,16}$/.test(phone)){
   alert("Enter a valid contact name and phone number.");
   return;
+ }if(contacts.length >= 5){
+  alert("Maximum 5 trusted contacts allowed.");
+  return;
  }
  contacts.push({name,phone});
  renderContacts();
