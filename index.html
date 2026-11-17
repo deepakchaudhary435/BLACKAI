@@ -292,7 +292,35 @@ function home(){window.scrollTo({top:0,behavior:"smooth"});}
 function showContacts(){
  document.querySelector("h2:nth-of-type(2)").scrollIntoView({behavior:"smooth"});
 }
-function profile(){alert("BLACKAI User Profile - Setup coming soon.");}
+function profile(){
+ let saved={};
+ try{
+  saved=JSON.parse(localStorage.getItem("blackai_profile")||"{}");
+  if(!saved || typeof saved!=="object" || Array.isArray(saved))saved={};
+ }catch(e){saved={};}
+ const name=prompt("Enter your name:",saved.name||"");
+ if(name===null)return;
+ const phone=prompt("Enter your phone number (optional):",saved.phone||"");
+ if(phone===null)return;
+ const cleanName=name.trim();
+ const cleanPhone=phone.trim();
+ if(!cleanName){
+  alert("Please enter your name.");
+  return;
+ }
+ if(cleanPhone && !/^[+0-9 ]{7,16}$/.test(cleanPhone)){
+  alert("Please enter a valid phone number, or leave it blank.");
+  return;
+ }
+ const profileData={name:cleanName,phone:cleanPhone};
+ try{
+  localStorage.setItem("blackai_profile",JSON.stringify(profileData));
+  alert("Profile saved on this device.\\nName: "+profileData.name+"\\nPhone: "+(profileData.phone||"Not added"));
+  log("Profile updated - "+new Date().toLocaleTimeString());
+ }catch(e){
+  alert("Profile could not be saved on this device. Check browser storage settings and try again.");
+ }
+}
 </script>
 </body>
   </html>
