@@ -142,20 +142,23 @@ function addContact(){
  if(!name || !/^[+0-9 ]{7,16}$/.test(phone)){
   alert("Enter a valid contact name and phone number.");
   return;
- }if(contacts.length >= 5){
+ }
+ if(contacts.length >= 5){
   alert("Maximum 5 trusted contacts allowed.");
   return;
  }
- contacts.push({name,phone});
- localStorage.setItem(
-  "blackai_contacts",
-  JSON.stringify(contacts)
-);
+ const nextContacts=[...contacts,{name,phone}];
+ try{
+  localStorage.setItem("blackai_contacts",JSON.stringify(nextContacts));
+ }catch(e){
+  alert("Contact could not be saved on this device. Check browser storage settings and try again.");
+  return;
+ }
+ contacts=nextContacts;
  renderContacts();
  document.getElementById("contactName").value="";
  document.getElementById("contactPhone").value="";
 }
-
 function renderContacts(){
  document.getElementById("contacts").innerHTML="";
  contacts.forEach((c,i)=>{
