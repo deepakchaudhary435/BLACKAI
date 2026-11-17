@@ -208,37 +208,42 @@ async function shareLocation(){
  }
 }
 
-async function startSOS(){
+let sosTimer=null;
+function startSOS(){
  const msg=document.getElementById("message");
- msg.textContent="SOS will start in 3 seconds. Tap again to cancel.";
  const button=document.querySelector(".sos");
- button.disabled=true;
- let cancelled=false;
- button.onclick=()=>{
-  cancelled=true;
+ if(sosTimer!==null){
+  clearTimeout(sosTimer);
+  sosTimer=null;
   msg.textContent="SOS cancelled.";
- };
- await new Promise(r=>setTimeout(r,3000));
- button.disabled=false;
- button.onclick=startSOS;
- if(cancelled)return;
+  button.disabled=false;
+  button.innerHTML="⚠<br>SOS<small>TAP FOR HELP</small>";
+  return;
+ }
  if(!contacts.length){
   msg.textContent="Please add a trusted contact first.";
   return;
  }
- try{
-  const p=await getLocation();
-  const map="https://maps.google.com/?q="+p.lat+","+p.lng;
-  const text="EMERGENCY! I need help. My location: "+map;
+ msg.textContent="SOS will start in 3 seconds. Tap SOS again to cancel.";
+ button.disabled=false;
+ button.innerHTML="CANCEL<small>TAP AGAIN TO STOP</small>";
+ sosTimer=setTimeout(async()=>{
+  sosTimer=null;
+  button.innerHTML="⚠<br>SOS<small>TAP FOR HELP</small>";
+  let map="";
+  try{
+   const p=await getLocation();
+   map=" My location: https://maps.google.com/?q="+p.lat+","+p.lng;
+  }catch(e){
+   map=" Location unavailable. Please call me.";
+  }
+  const text="EMERGENCY! I need help."+map;
   const numbers=contacts.map(c=>c.phone.replace(/\s/g,"")).join(",");
-  msg.textContent="Emergency message ready. Review and send it from your messaging app.";
+  msg.textContent="Emergency message prepared. Review and send it from your messaging app.";
   log("SOS message prepared - "+new Date().toLocaleTimeString());
   location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
- }catch(e){
-  msg.textContent="Location unavailable. SOS message was not sent.";
- }
+ },3000);
 }
-
 function voiceAlert(){
  if(!("speechSynthesis" in window)){
   alert("Voice feature unavailable.");
