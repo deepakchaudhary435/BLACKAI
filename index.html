@@ -260,9 +260,30 @@ function emergencyPhoto(){
  input.type="file";
  input.accept="image/*";
  input.capture="environment";
- input.onchange=()=>{
-  if(input.files.length){
-   alert("Photo selected. Review it before sharing.");
+ input.onchange=async()=>{
+  const file=input.files && input.files[0];
+  if(!file)return;
+  if(!file.type.startsWith("image/")){
+   alert("Please choose an image file.");
+   return;
+  }
+  try{
+   if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({
+     files:[file],
+     title:"Emergency photo",
+     text:"Please check this photo. I may need help."
+    });
+    log("Emergency photo shared - "+new Date().toLocaleTimeString());
+   }else{
+    const previewUrl=URL.createObjectURL(file);
+    window.open(previewUrl,"_blank");
+    alert("Photo preview opened. Use your device's share option to share it manually.");
+   }
+  }catch(e){
+   if(e.name!=="AbortError"){
+    alert("Could not open photo sharing. Please try again or share the photo manually from your gallery.");
+   }
   }
  };
  input.click();
