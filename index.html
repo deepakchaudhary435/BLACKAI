@@ -59,9 +59,43 @@ input{
 .bottom button{background:none;border:0;color:#9ba4b3;font-size:12px}
 .bottom button.active{color:#ed354d}
 #message{color:#f5b8c0;margin-top:15px;line-height:1.5}
+
+#authGate{max-width:480px;margin:8vh auto 0;background:#171b23;border:1px solid #303440;border-radius:20px;padding:25px}
+#authGate h1{margin:0 0 8px;font-size:28px;color:#ed354d}
+#authGate p{color:#aab2c0;line-height:1.5}
+#authGate label{display:block;margin-top:16px;color:#d8dce5;font-size:14px}
+#authGate input{margin-top:7px}
+.auth-btn{width:100%;padding:14px;border:0;border-radius:10px;background:#ed354d;color:#fff;font-weight:bold;margin-top:18px}
+.auth-secondary{background:#252b36;color:#e8eaf0;margin-top:10px}
+.auth-links{display:flex;justify-content:space-between;gap:10px;margin-top:15px;flex-wrap:wrap}
+.auth-links button{background:none;border:0;color:#ff7888;text-decoration:underline;padding:6px}
+#authError{color:#ff9aa6;line-height:1.5;margin-top:14px;min-height:20px}
+#logoutBtn{background:#252b36;color:#fff;border:1px solid #414958;padding:9px 12px;border-radius:9px;margin-left:8px}
+
 </style>
 </head>
 <body>
+
+<div id="authGate">
+ <h1>BLACKAI</h1>
+ <h2 id="authTitle" style="margin:8px 0">Login to continue</h2>
+ <p id="authSubtitle">अपने BLACKAI खाते में सुरक्षित रूप से साइन इन करें।</p>
+ <div id="nameWrap" style="display:none">
+  <label for="authName">आपका नाम</label>
+  <input id="authName" autocomplete="name" placeholder="अपना नाम लिखें">
+ </div>
+ <label for="authEmail">ईमेल</label>
+ <input id="authEmail" type="email" autocomplete="email" placeholder="name@example.com">
+ <label for="authPassword">पासवर्ड</label>
+ <input id="authPassword" type="password" autocomplete="current-password" placeholder="कम से कम 6 अक्षर">
+ <button class="auth-btn" id="authSubmit" onclick="authAction()">Login</button>
+ <button class="auth-btn auth-secondary" id="authSwitch" onclick="toggleAuthMode()">नया अकाउंट बनाएं</button>
+ <div class="auth-links"><button onclick="resetPassword()">पासवर्ड भूल गए?</button></div>
+ <div id="authError" role="status" aria-live="polite"></div>
+ <p style="font-size:12px;margin-top:18px">आपका अकाउंट Firebase Authentication से मैनेज होता है। अपना पासवर्ड किसी के साथ साझा न करें।</p>
+</div>
+<div id="appContent" style="display:none">
+
 
 <header>
  <div class="brand">BLACKAI / COMMAND CENTER</div>
@@ -119,7 +153,93 @@ input{
  <button onclick="profile()">●<br>Profile</button>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
+const firebaseConfig = {
+ apiKey: "AIzaSyDlymowey_AyTDqmv_46CVITCYi1CpBmDc",
+ authDomain: "blackai-14470.firebaseapp.com",
+ projectId: "blackai-14470",
+ storageBucket: "blackai-14470.firebasestorage.app",
+ messagingSenderId: "332154473452",
+ appId: "1:332154473452:web:8c1b115d450bf2e45c8ec9",
+ measurementId: "G-GMNR4W53RP"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+let authMode = "login";
+function toggleAuthMode(){
+ authMode = authMode === "login" ? "signup" : "login";
+ document.getElementById("authTitle").textContent = authMode === "login" ? "Login to continue" : "Create your BLACKAI account";
+ document.getElementById("authSubtitle").textContent = authMode === "login" ? "अपने BLACKAI खाते में सुरक्षित रूप से साइन इन करें।" : "ईमेल और पासवर्ड से अपना अकाउंट बनाएं।";
+ document.getElementById("nameWrap").style.display = authMode === "signup" ? "block" : "none";
+ document.getElementById("authPassword").autocomplete = authMode === "signup" ? "new-password" : "current-password";
+ document.getElementById("authSubmit").textContent = authMode === "login" ? "Login" : "Sign Up";
+ document.getElementById("authSwitch").textContent = authMode === "login" ? "नया अकाउंट बनाएं" : "पहले से अकाउंट है? Login करें";
+ document.getElementById("authError").textContent = "";
+}
+async function authAction(){
+ const email = document.getElementById("authEmail").value.trim();
+ const password = document.getElementById("authPassword").value;
+ const name = document.getElementById("authName").value.trim();
+ const error = document.getElementById("authError");
+ error.textContent = "";
+ if(!email || !password){error.textContent="ईमेल और पासवर्ड दोनों भरें।";return;}
+ if(password.length < 6){error.textContent="पासवर्ड कम से कम 6 अक्षर का होना चाहिए।";return;}
+ const submit = document.getElementById("authSubmit");
+ submit.disabled = true;
+ try{
+  if(authMode === "signup"){
+   if(!name){error.textContent="कृपया अपना नाम लिखें।";return;}
+   const result = await auth.createUserWithEmailAndPassword(email,password);
+   await result.user.updateProfile({displayName:name});
+   try{await result.user.sendEmailVerification();}catch(e){}
+   error.textContent="अकाउंट बन गया। ईमेल में verification लिंक चेक करें।";
+  }else{
+   await auth.signInWithEmailAndPassword(email,password);
+  }
+ }catch(e){
+  const messages = {
+   "auth/email-already-in-use":"इस ईमेल से अकाउंट पहले से मौजूद है। Login करें।",
+   "auth/invalid-email":"ईमेल पता सही नहीं है।",
+   "auth/weak-password":"पासवर्ड थोड़ा मजबूत रखें (कम से कम 6 अक्षर)।",
+   "auth/user-not-found":"इस ईमेल का अकाउंट नहीं मिला। पहले Sign Up करें।",
+   "auth/wrong-password":"पासवर्ड गलत है।",
+   "auth/invalid-credential":"ईमेल या पासवर्ड सही नहीं है।",
+   "auth/too-many-requests":"बहुत बार कोशिश हुई है। कुछ देर बाद फिर प्रयास करें।",
+   "auth/network-request-failed":"इंटरनेट कनेक्शन जांचकर फिर कोशिश करें।"
+  };
+  error.textContent = messages[e.code] || ("Login/Signup नहीं हो पाया: " + e.message);
+ }finally{submit.disabled=false;}
+}
+async function resetPassword(){
+ const email = document.getElementById("authEmail").value.trim();
+ const error = document.getElementById("authError");
+ if(!email){error.textContent="पहले ईमेल भरें, फिर Forgot Password दबाएं।";return;}
+ try{await auth.sendPasswordResetEmail(email);error.textContent="Password reset लिंक आपके ईमेल पर भेज दिया गया है।";}
+ catch(e){error.textContent=e.code==="auth/user-not-found"?"इस ईमेल का अकाउंट नहीं मिला.": "Reset लिंक नहीं भेजा जा सका। ईमेल जांचें और फिर कोशिश करें।";}
+}
+function logoutBLACKAI(){auth.signOut();}
+auth.onAuthStateChanged(user=>{
+ const gate=document.getElementById("authGate");
+ const app=document.getElementById("appContent");
+ gate.style.display=user?"none":"block";
+ app.style.display=user?"block":"none";
+ if(user){
+  const old=document.getElementById("logoutBtn");
+  if(!old){
+   const b=document.createElement("button");
+   b.id="logoutBtn";b.textContent="Logout";b.onclick=logoutBLACKAI;
+   document.querySelector("header").appendChild(b);
+  }
+  if(user.displayName){
+   try{localStorage.setItem("blackai_profile",JSON.stringify({name:user.displayName,phone:""}));}catch(e){}
+  }
+ }else{
+  const old=document.getElementById("logoutBtn");if(old)old.remove();
+ }
+});
 let contacts = [];
 
 try {
@@ -322,6 +442,7 @@ function profile(){
  }
 }
 </script>
+</div>
 </body>
   </html>
     
