@@ -512,6 +512,7 @@ function renderContacts(){
  });
 }
 renderContacts();
+fillLiveContacts();
 function callContact(){
  if(!contacts.length){alert("Add a trusted contact first.");return;}
  location.href="tel:"+contacts[0].phone.replace(/\s/g,"");
