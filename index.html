@@ -648,7 +648,7 @@ async function blackaiInit() {
    const ai=aiSdk.getAI(app,{backend:new aiSdk.GoogleAIBackend()});
    blackaiAiSdk=aiSdk;
    blackaiAi=ai;
-   blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-4-hydrogen"});
+   blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash"});
    // Backup is a separate stable Firebase AI Logic model.
    blackaiBackupModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash"});
    status.textContent="AI तैयार है। सवाल लिखकर भेजें।";
@@ -760,13 +760,13 @@ window.sendBLACKAIMessage=async function(){
   await blackaiInit();
   liveReply=document.createElement("div");
   liveReply.className="ai-message ai-bot";
-  liveReply.textContent="जवाब तैयार हो रहा है…";
+  liveReply.textContent="BLACKAI जवाब लिख रहा है…";
   const messageBox=document.getElementById("aiMessages");
   messageBox.appendChild(liveReply);
   messageBox.scrollTop=messageBox.scrollHeight;
   const showStream=text=>{
    if(!liveReply)return;
-   liveReply.textContent=text||"जवाब तैयार हो रहा है…";
+   liveReply.textContent=text||"BLACKAI जवाब लिख रहा है…";
    messageBox.scrollTop=messageBox.scrollHeight;
   };
   let answer;
