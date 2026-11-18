@@ -648,9 +648,9 @@ async function blackaiInit() {
    const ai=aiSdk.getAI(app,{backend:new aiSdk.GoogleAIBackend()});
    blackaiAiSdk=aiSdk;
    blackaiAi=ai;
-   blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash"});
+   blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash",generationConfig:{maxOutputTokens:512,temperature:0.5}});
    // Backup is a separate stable Firebase AI Logic model.
-   blackaiBackupModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash"});
+   blackaiBackupModel=aiSdk.getGenerativeModel(ai,{model:"gemini-4-hydrogen",generationConfig:{maxOutputTokens:512,temperature:0.5}});
    status.textContent="AI तैयार है। सवाल लिखकर भेजें।";
    return blackaiModel;
   } catch(e) {
