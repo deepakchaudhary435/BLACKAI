@@ -38,6 +38,19 @@ h2{font-size:22px;margin-top:35px}
 }
 .action b{display:block;margin-top:18px;font-size:17px}
 .action span{display:block;color:#929aaa;margin-top:9px}
+.emergency-photo-card{grid-column:1/-1;min-height:0;padding:18px;background:linear-gradient(145deg,#202633,#141821);border:1px solid #3b4658;box-shadow:0 8px 24px #0005;cursor:default}
+.photo-card-heading{display:flex;align-items:center;gap:13px;margin-bottom:16px}
+.photo-card-heading>span{font-size:28px;background:#30394a;width:48px;height:48px;display:grid;place-items:center;border-radius:14px;margin:0}
+.photo-card-heading b{display:block;margin:0;font-size:17px}
+.photo-card-heading small{display:block;color:#aab4c5;font-size:12px;margin-top:5px;line-height:1.4}
+.photo-choice{width:100%;display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border-radius:13px;border:1px solid #465268;color:#fff;margin-top:10px;cursor:pointer}
+.camera-choice{background:linear-gradient(100deg,#a9253e,#e23c55);border-color:#ed5369}
+.gallery-choice{background:linear-gradient(100deg,#263e62,#315b88);border-color:#5279a7}
+.photo-choice>span:first-child{font-size:22px}
+.photo-choice strong{display:block;font-size:14px}
+.photo-choice small{display:block;color:#e0e7f2;font-size:11px;margin-top:3px}
+.photo-choice .choice-arrow{margin-left:auto;font-size:25px;color:#fff}
+.photo-choice:active{transform:scale(.985);filter:brightness(1.12)}
 .contact{
  background:#171b23;padding:17px;border-radius:15px;
  margin-top:12px;display:flex;justify-content:space-between;
@@ -151,10 +164,10 @@ input{
   <span>🎙</span><b>Voice alert</b>
   <span>Browser permission</span>
  </button>
- <div class="action">
-  <span>📷</span><b>Emergency photo</b>
-  <button type="button" onclick="emergencyPhoto('camera')">📸 कैमरा खोलें</button>
-  <button type="button" onclick="emergencyPhoto('gallery')">🖼️ गैलरी खोलें</button>
+ <div class="action emergency-photo-card">
+  <div class="photo-card-heading"><span>📷</span><div><b>Emergency photo</b><small>तस्वीर चुनें और जरूरत पड़ने पर शेयर करें</small></div></div>
+  <button class="photo-choice camera-choice" type="button" onclick="emergencyPhoto('camera')"><span>📸</span><span><strong>कैमरा खोलें</strong><small>नई फोटो लें</small></span><span class="choice-arrow">›</span></button>
+  <button class="photo-choice gallery-choice" type="button" onclick="emergencyPhoto('gallery')"><span>🖼️</span><span><strong>गैलरी खोलें</strong><small>पहले से मौजूद फोटो चुनें</small></span><span class="choice-arrow">›</span></button>
  </div>
 </div>
 
