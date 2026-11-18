@@ -32,6 +32,12 @@ h1{font-size:30px;margin:28px 0 15px}
 h2{font-size:22px;margin-top:35px}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 
+.control-center{background:linear-gradient(145deg,#202b3b,#121923);border:1px solid #40516a;border-radius:18px;padding:16px;margin:18px 0}
+.control-center h2{margin:0 0 8px;font-size:20px}
+.control-center p{color:#aab6c8;font-size:12px;line-height:1.5;margin:0 0 13px}
+.control-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.control-link{background:#26364b;border:1px solid #4b607b;color:#fff;border-radius:12px;padding:14px 10px;text-align:left;font-weight:bold;min-height:70px}
+.control-link span{display:block;font-size:11px;color:#c2cede;font-weight:normal;margin-top:5px}
 .sensor-dashboard{background:linear-gradient(145deg,#171f2c,#10151e);border:1px solid #34445a;border-radius:18px;padding:17px;margin-top:18px}
 .sensor-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .sensor-top h2{margin:0;font-size:20px}
@@ -173,7 +179,18 @@ input{
  📍 Location is permission-controlled
 </div>
 
-<div class="sos-wrap">
+<section class="control-center" aria-label="Emergency Control Center">
+ <h2>🛡️ Emergency Control Center</h2>
+ <p>जरूरत के समय जरूरी सुविधाओं तक जल्दी पहुँचें। किसी भी आपात स्थिति में उपलब्ध स्थानीय सहायता सेवा से सीधे संपर्क करें।</p>
+ <div class="control-grid">
+  <button class="control-link" type="button" onclick="document.getElementById('sosControl').scrollIntoView({behavior:'smooth',block:'center'})">🚨 SOS<span>आपातकालीन सहायता</span></button>
+  <button class="control-link" type="button" onclick="document.getElementById('quickActions').scrollIntoView({behavior:'smooth',block:'start'})">🚓 Police / Ambulance<span>112 और 108 विकल्प</span></button>
+  <button class="control-link" type="button" onclick="document.getElementById('liveLocationCard').scrollIntoView({behavior:'smooth',block:'center'})">📍 Live Location<span>5 घंटे तक शेयर करें</span></button>
+  <button class="control-link" type="button" onclick="document.getElementById('contacts').scrollIntoView({behavior:'smooth',block:'center'})">👥 Trusted Contacts<span>अपने भरोसेमंद संपर्क</span></button>
+ </div>
+</section>
+
+<div class="sos-wrap" id="sosControl">
  <button class="sos" onclick="startSOS()">
   ⚠<br>SOS
   <small>TAP FOR HELP</small>
@@ -199,7 +216,7 @@ input{
 </section>
 
 <h2>Quick actions</h2>
-<div class="actions">
+<div class="actions" id="quickActions">
  <button class="action" onclick="callContact()">
   <span>📞</span><b>Call contact</b>
   <span>Fast dial</span>
