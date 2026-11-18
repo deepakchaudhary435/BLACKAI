@@ -582,22 +582,28 @@ function checkBLACKAIBackupReminder(showAlert){
 function restoreBLACKAIBackup(input){
  const status=document.getElementById("backupStatus"),user=auth.currentUser,file=input.files&&input.files[0];
  if(!user||!file){status.textContent="पहले Login करें और Backup फाइल चुनें।";input.value="";return;}
+ const restoreUid=user.uid;
+ if(file.size>2*1024*1024){status.textContent="Backup फाइल 2 MB से बड़ी है। सही फाइल चुनें।";input.value="";return;}
  const reader=new FileReader();
  reader.onload=function(){
   try{
+   if(!auth.currentUser||auth.currentUser.uid!==restoreUid)throw new Error("अकाउंट बदल गया है। सही अकाउंट में Login करके फिर Restore करें।");
    const payload=JSON.parse(String(reader.result||""));
-   if(payload.app!=="BLACKAI"||payload.version!==1||payload.userUid!==user.uid||!payload.data)throw new Error("यह Backup इस अकाउंट के लिए मान्य नहीं है।");
+   if(!payload||typeof payload!=="object"||payload.app!=="BLACKAI"||payload.version!==1||payload.userUid!==restoreUid||!payload.data)throw new Error("यह Backup इस अकाउंट के लिए मान्य नहीं है।");
    const d=payload.data;
-   if(!Array.isArray(d.contacts)||d.contacts.length>5||!d.contacts.every(c=>c&&typeof c.name==="string"&&typeof c.phone==="string"&&/^[+0-9 ]{7,16}$/.test(c.phone)))throw new Error("Backup में Trusted Contacts का डेटा सही नहीं है।");
-   if(!d.profile||typeof d.profile!=="object"||Array.isArray(d.profile)||!Array.isArray(d.chats)||!Array.isArray(d.sosHistory))throw new Error("Backup फाइल का डेटा सही नहीं है।");
+   if(!Array.isArray(d.contacts)||d.contacts.length>5||!d.contacts.every(c=>c&&typeof c.name==="string"&&c.name.trim().length>0&&c.name.length<=80&&typeof c.phone==="string"&&/^[+0-9 ]{7,16}$/.test(c.phone)))throw new Error("Backup में Trusted Contacts का डेटा सही नहीं है।");
+   if(!d.profile||typeof d.profile!=="object"||Array.isArray(d.profile)||typeof d.profile.name!=="string"||typeof d.profile.phone!=="string"||d.profile.name.length>100||d.profile.phone.length>20)throw new Error("Backup में Profile का डेटा सही नहीं है।");
+   if(!Array.isArray(d.chats)||d.chats.length>30||!d.chats.every(c=>c&&typeof c.id==="string"&&c.id.length<=100&&Array.isArray(c.messages)&&c.messages.length<=500&&c.messages.every(m=>m&&typeof m.text==="string"&&m.text.length<=10000&&["user","bot"].includes(m.role))))throw new Error("Backup में AI Chat का डेटा सही नहीं है।");
+   if(!Array.isArray(d.sosHistory)||d.sosHistory.length>10||!d.sosHistory.every(x=>x&&typeof x.status==="string"&&x.status.length<=200&&typeof x.time==="string"&&x.time.length<=100))throw new Error("Backup में SOS History का डेटा सही नहीं है।");
    if(!confirm("इस अकाउंट का मौजूदा Profile, Contacts, AI Chat और SOS History Backup से बदल जाएगा। क्या Restore करना है?"))return;
-   localStorage.setItem(trustedContactsKey(user.uid),JSON.stringify(d.contacts));
-   localStorage.setItem("blackai_profile_"+user.uid,JSON.stringify(d.profile));
-   localStorage.setItem("blackai_ai_chats_"+user.uid,JSON.stringify(d.chats.slice(0,30)));
-   localStorage.setItem(sosHistoryKey(user.uid),JSON.stringify(d.sosHistory.slice(0,10)));
+   if(!auth.currentUser||auth.currentUser.uid!==restoreUid)throw new Error("अकाउंट बदल गया है। Restore रद्द किया गया।");
+   localStorage.setItem(trustedContactsKey(restoreUid),JSON.stringify(d.contacts));
+   localStorage.setItem("blackai_profile_"+restoreUid,JSON.stringify(d.profile));
+   localStorage.setItem("blackai_ai_chats_"+restoreUid,JSON.stringify(d.chats));
+   localStorage.setItem(sosHistoryKey(restoreUid),JSON.stringify(d.sosHistory));
    contacts=d.contacts;renderContacts();
-   if(typeof blackaiRefreshHistory==="function")blackaiRefreshHistory();
-   if(typeof renderSOSHistory==="function"){sosHistory=d.sosHistory.slice(0,10);renderSOSHistory();}
+   if(typeof blackaiLoadHistory==="function")blackaiLoadHistory();
+   if(typeof renderSOSHistory==="function"){sosHistory=d.sosHistory;renderSOSHistory();}
    if(typeof renderHomeProfile==="function")renderHomeProfile();
    status.textContent="Backup Restore हो गया। Contacts, Profile, AI Chat और SOS History अपडेट हैं।";
   }catch(e){status.textContent=e.message||"Backup Restore नहीं हो पाया।";}
