@@ -151,10 +151,11 @@ input{
   <span>🎙</span><b>Voice alert</b>
   <span>Browser permission</span>
  </button>
- <button class="action" onclick="emergencyPhoto()">
+ <div class="action">
   <span>📷</span><b>Emergency photo</b>
-  <span>Choose before sharing</span>
- </button>
+  <button type="button" onclick="emergencyPhoto('camera')">📸 कैमरा खोलें</button>
+  <button type="button" onclick="emergencyPhoto('gallery')">🖼️ गैलरी खोलें</button>
+ </div>
 </div>
 
 <h2>Trusted circle</h2>
@@ -416,11 +417,11 @@ function voiceAlert(){
  speechSynthesis.speak(new SpeechSynthesisUtterance("This is an emergency. Please help me."));
 }
 
-function emergencyPhoto(){
+function emergencyPhoto(mode="gallery"){
  const input=document.createElement("input");
  input.type="file";
  input.accept="image/*";
- input.capture="environment";
+ if(mode==="camera") input.setAttribute("capture","environment");
  input.onchange=async()=>{
   const file=input.files && input.files[0];
   if(!file)return;
@@ -430,11 +431,7 @@ function emergencyPhoto(){
   }
   try{
    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-    await navigator.share({
-     files:[file],
-     title:"Emergency photo",
-     text:"Please check this photo. I may need help."
-    });
+    await navigator.share({files:[file],title:"Emergency photo",text:"Please check this photo. I may need help."});
     log("Emergency photo shared - "+new Date().toLocaleTimeString());
    }else{
     const previewUrl=URL.createObjectURL(file);
@@ -442,9 +439,7 @@ function emergencyPhoto(){
     alert("Photo preview opened. Use your device's share option to share it manually.");
    }
   }catch(e){
-   if(e.name!=="AbortError"){
-    alert("Could not open photo sharing. Please try again or share the photo manually from your gallery.");
-   }
+   if(e.name!=="AbortError") alert("Could not open photo sharing. Please try again or share the photo manually from your gallery.");
   }
  };
  input.click();
