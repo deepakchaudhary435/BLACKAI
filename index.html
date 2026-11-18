@@ -331,6 +331,8 @@ input{
   <button class="sensor-connect" type="button" onclick="loadBLACKAIAdminTickets()">रिपोर्ट रिफ्रेश करें</button>
   <input id="blackaiAdminSupportSearch" type="search" maxlength="120" placeholder="रिपोर्ट, UID या जवाब खोजें…" aria-label="Admin रिपोर्ट खोजें" style="width:100%;box-sizing:border-box;margin:8px 0;padding:11px;background:#171b23;color:white;border:1px solid #444;border-radius:8px">
   <div id="allSupportTickets" aria-live="polite"></div>
+  <button class="sensor-connect" type="button" onclick="loadBLACKAIRecycleBin()">🗑️ Recycle Bin खोलें</button>
+  <div id="blackaiRecycleBin" style="display:none;margin-top:10px" aria-live="polite"></div>
  </div>
 </section>
 
@@ -1541,6 +1543,36 @@ async function sendBLACKAISupportTicket(){
   status.textContent="रिपोर्ट नहीं भेजी जा सकी। Firebase Rules/इंटरनेट जांचें और फिर कोशिश करें।";
  }finally{button.disabled=false;}
 }
+async function loadBLACKAIRecycleBin(){
+ const user=auth.currentUser,area=document.getElementById("blackaiRecycleBin");
+ if(!area)return;
+ if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID){area.textContent="Admin अनुमति आवश्यक है।";return;}
+ area.style.display="block";area.textContent="Recycle Bin लोड हो रहा है…";
+ try{
+  const snap=await liveDB.ref("recycleBin").once("value"),all=snap.val()||{};
+  area.textContent="";let total=0;
+  Object.entries(all).forEach(([uid,items])=>Object.entries(items||{}).forEach(([ticketId,item])=>{
+   total++;
+   const card=blackaiSupportNode("div","","contact");card.style.cssText="display:block;margin:8px 0;padding:12px";
+   card.appendChild(blackaiSupportNode("b","यूज़र UID: "+uid));
+   const p=blackaiSupportNode("p",String(item.ticket&&item.ticket.message||"(रिपोर्ट का टेक्स्ट उपलब्ध नहीं)"));p.style.whiteSpace="pre-wrap";card.appendChild(p);
+   card.appendChild(blackaiSupportNode("small","डिलीट समय: "+blackaiSupportDate(item.deletedAt)));
+   const restore=document.createElement("button");restore.type="button";restore.className="sensor-connect";restore.textContent="↩️ रिपोर्ट वापस लाएँ";
+   restore.onclick=async()=>{
+    if(!auth.currentUser||auth.currentUser.uid!==BLACKAI_SUPPORT_ADMIN_UID)return;
+    restore.disabled=true;
+    try{
+     await liveDB.ref("supportTickets/"+uid+"/"+ticketId).set(item.ticket);
+     if(item.reply)await liveDB.ref("supportReplies/"+uid+"/"+ticketId).set(item.reply);
+     await liveDB.ref("recycleBin/"+uid+"/"+ticketId).remove();
+     card.remove();loadBLACKAIAdminTickets();
+    }catch(e){restore.disabled=false;alert("रिपोर्ट वापस नहीं आई। Firebase Rules जाँचें।");}
+   };
+   card.appendChild(restore);area.appendChild(card);
+  }));
+  if(!total)area.appendChild(blackaiSupportNode("div","Recycle Bin खाली है।","contact"));
+ }catch(e){area.textContent="Recycle Bin नहीं खुला। Firebase Rules में Admin अनुमति जाँचें।";}
+}
 async function loadBLACKAIAdminTickets(){
  const user=auth.currentUser,area=document.getElementById("allSupportTickets");
  if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID){if(area)area.textContent="Admin अनुमति आवश्यक है।";return;}
@@ -1635,14 +1667,16 @@ async function loadBLACKAIAdminTickets(){
     const removeTicket=document.createElement("button");removeTicket.type="button";removeTicket.textContent="रिपोर्ट डिलीट करें";removeTicket.className="sensor-connect";removeTicket.style.cssText="display:block;margin-top:10px;background:#7a2424";
     removeTicket.onclick=async()=>{
      if(!auth.currentUser||auth.currentUser.uid!==BLACKAI_SUPPORT_ADMIN_UID){alert("Admin अनुमति आवश्यक है।");return;}
-     if(!confirm("क्या इस रिपोर्ट और उससे जुड़ा जवाब हमेशा के लिए डिलीट करना है?"))return;
+     if(!confirm("रिपोर्ट Recycle Bin में भेजें? वहाँ से बाद में वापस ला सकते हैं।"))return;
      removeTicket.disabled=true;
      try{
+      const replySnap=await liveDB.ref("supportReplies/"+uid+"/"+ticketId).once("value");
+      const recycleData={ticket:ticket,reply:replySnap.val()||null,deletedAt:Date.now(),deletedBy:user.uid};
+      await liveDB.ref("recycleBin/"+uid+"/"+ticketId).set(recycleData);
       await liveDB.ref("supportTickets/"+uid+"/"+ticketId).remove();
       await liveDB.ref("supportReplies/"+uid+"/"+ticketId).remove();
-      card.remove();
-      loadBLACKAIAdminTickets();
-     }catch(e){removeTicket.disabled=false;alert("डिलीट नहीं हुआ। Firebase Rules में Admin delete अनुमति जोड़नी होगी।");}
+      card.remove();loadBLACKAIAdminTickets();
+     }catch(e){removeTicket.disabled=false;alert("Recycle Bin में नहीं जा सका। Firebase Rules में recycleBin की Admin अनुमति जाँचें।")}
     };
     card.appendChild(removeTicket);area.appendChild(card);
    });
