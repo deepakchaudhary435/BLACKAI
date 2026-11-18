@@ -283,6 +283,15 @@ input{
 <input id="contactPhone" type="tel" placeholder="Phone number">
 <button class="add" onclick="addContact()">+ Add contact</button>
 
+<section class="sensor-dashboard" id="backupCard" aria-labelledby="backupHeading">
+ <h2 id="backupHeading">💾 BLACKAI Data Backup & Recovery</h2>
+ <p class="sensor-intro">अपने Trusted Contacts, Profile, AI Chat और SOS History का बैकअप अपने फोन में सेव करें।</p>
+ <button class="sensor-connect" type="button" onclick="backupBLACKAI()">⬇️ Backup डाउनलोड करें</button>
+ <input id="blackaiBackupFile" type="file" accept=".json,application/json" style="display:none" onchange="restoreBLACKAIBackup(this)">
+ <button class="sensor-connect" type="button" onclick="document.getElementById('blackaiBackupFile').click()">⬆️ Backup Restore करें</button>
+ <p id="backupStatus" class="sensor-foot" aria-live="polite">बैकअप फाइल निजी रखें। इसमें फोन नंबर और निजी जानकारी हो सकती है। Restore करने पर मौजूदा सेव डेटा बदल जाएगा।</p>
+</section>
+
 
 <h2>BLACKAI Assistant</h2>
 <section id="aiChat" aria-label="BLACKAI AI Chat">
@@ -504,6 +513,56 @@ async function showLiveViewer(){
  await refresh();setInterval(refresh,10000);
 }
 
+
+function backupBLACKAI(){
+ const user=auth.currentUser, status=document.getElementById("backupStatus");
+ if(!user){status.textContent="पहले Login करें।";return;}
+ try{
+  const uid=user.uid;
+  const read=(key,fallback)=>{try{const v=localStorage.getItem(key);return v===null?fallback:JSON.parse(v);}catch(e){return fallback;}};
+  const payload={
+   app:"BLACKAI",version:1,createdAt:new Date().toISOString(),userUid:uid,
+   data:{
+    contacts:read(trustedContactsKey(uid),[]),
+    profile:read("blackai_profile_"+uid,{}),
+    chats:read("blackai_ai_chats_"+uid,[]),
+    sosHistory:read("blackai_sos_history",[])
+   }
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="BLACKAI-backup-"+new Date().toISOString().slice(0,10)+".json";
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  status.textContent="Backup फाइल डाउनलोड के लिए तैयार है। इसे सुरक्षित जगह रखें और किसी से साझा न करें।";
+ }catch(e){status.textContent="Backup नहीं बन पाया। फोन की storage और browser permission जांचें।";}
+}
+function restoreBLACKAIBackup(input){
+ const status=document.getElementById("backupStatus"),user=auth.currentUser,file=input.files&&input.files[0];
+ if(!user||!file){status.textContent="पहले Login करें और Backup फाइल चुनें।";input.value="";return;}
+ const reader=new FileReader();
+ reader.onload=function(){
+  try{
+   const payload=JSON.parse(String(reader.result||""));
+   if(payload.app!=="BLACKAI"||payload.version!==1||payload.userUid!==user.uid||!payload.data)throw new Error("यह Backup इस अकाउंट के लिए मान्य नहीं है।");
+   const d=payload.data;
+   if(!Array.isArray(d.contacts)||d.contacts.length>5||!d.contacts.every(c=>c&&typeof c.name==="string"&&typeof c.phone==="string"&&/^[+0-9 ]{7,16}$/.test(c.phone)))throw new Error("Backup में Trusted Contacts का डेटा सही नहीं है।");
+   if(!d.profile||typeof d.profile!=="object"||Array.isArray(d.profile)||!Array.isArray(d.chats)||!Array.isArray(d.sosHistory))throw new Error("Backup फाइल का डेटा सही नहीं है।");
+   if(!confirm("इस अकाउंट का मौजूदा Profile, Contacts, AI Chat और SOS History Backup से बदल जाएगा। क्या Restore करना है?"))return;
+   localStorage.setItem(trustedContactsKey(user.uid),JSON.stringify(d.contacts));
+   localStorage.setItem("blackai_profile_"+user.uid,JSON.stringify(d.profile));
+   localStorage.setItem("blackai_ai_chats_"+user.uid,JSON.stringify(d.chats.slice(0,30)));
+   localStorage.setItem("blackai_sos_history",JSON.stringify(d.sosHistory.slice(0,10)));
+   contacts=d.contacts;renderContacts();
+   if(typeof blackaiRefreshHistory==="function")blackaiRefreshHistory();
+   if(typeof renderSOSHistory==="function"){sosHistory=d.sosHistory.slice(0,10);renderSOSHistory();}
+   if(typeof renderHomeProfile==="function")renderHomeProfile();
+   status.textContent="Backup Restore हो गया। Contacts, Profile, AI Chat और SOS History अपडेट हैं।";
+  }catch(e){status.textContent=e.message||"Backup Restore नहीं हो पाया।";}
+  finally{input.value="";}
+ };
+ reader.onerror=function(){status.textContent="Backup फाइल पढ़ी नहीं जा सकी।";input.value="";};
+ reader.readAsText(file);
+}
 
 function log(text){
  document.getElementById("activity").textContent=text;
