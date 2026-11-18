@@ -546,7 +546,7 @@ function backupBLACKAI(){
     contacts:read(trustedContactsKey(uid),[]),
     profile:read("blackai_profile_"+uid,{}),
     chats:read("blackai_ai_chats_"+uid,[]),
-    sosHistory:read("blackai_sos_history",[])
+    sosHistory:read(sosHistoryKey(uid),[])
    }
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
