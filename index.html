@@ -422,6 +422,7 @@ auth.onAuthStateChanged(async user=>{
   try{if("speechSynthesis" in window)speechSynthesis.cancel();}catch(e){}
  }
  blackaiSessionUid=nextUid;
+ if(!user && typeof startBLACKAIAdminLiveUpdates==="function") startBLACKAIAdminLiveUpdates(null);
  if(user && window.blackaiLoadHistory) window.blackaiLoadHistory();
  const gate=document.getElementById("authGate");
  const app=document.getElementById("appContent");
@@ -431,6 +432,7 @@ auth.onAuthStateChanged(async user=>{
   loadTrustedContacts(user.uid);
   loadSOSHistory(user.uid);
   if(typeof loadBLACKAISupport==="function") loadBLACKAISupport();
+  if(typeof startBLACKAIAdminLiveUpdates==="function") startBLACKAIAdminLiveUpdates(user);
   checkBLACKAIBackupReminder(false);
   const old=document.getElementById("logoutBtn");
   if(!old){
@@ -1402,6 +1404,17 @@ window.sendBLACKAIMessage=async function(){
 document.addEventListener("DOMContentLoaded",()=>{blackaiInit().catch(()=>{});if("speechSynthesis" in window){window.loadBLACKAIVoices();speechSynthesis.onvoiceschanged=window.loadBLACKAIVoices;}});
 
 
+// Admin report list auto-refresh listener (Firebase Realtime Database)
+let blackaiAdminTicketsListener=null;
+function startBLACKAIAdminLiveUpdates(user){
+ if(blackaiAdminTicketsListener){
+  liveDB.ref("supportTickets").off("value",blackaiAdminTicketsListener);
+  blackaiAdminTicketsListener=null;
+ }
+ if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID)return;
+ blackaiAdminTicketsListener=()=>{loadBLACKAIAdminTickets();};
+ liveDB.ref("supportTickets").on("value",blackaiAdminTicketsListener);
+}
 // BLACKAI Help & Support functions
 const BLACKAI_SUPPORT_ADMIN_UID = "YbAdMPt1pYP74CzKCSNnCmmyTG73";
 function blackaiSupportDate(value){
