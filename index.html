@@ -144,10 +144,41 @@ input{
 .ai-tools select{flex:1;min-width:150px;margin:0;background:#171b23;color:#fff;border:1px solid #444;border-radius:9px;padding:10px}
 .ai-tools button{background:#252b36;color:#fff;border:1px solid #414958;border-radius:9px;padding:10px 12px}
 
+
+#blackaiIntro{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:22px;background:radial-gradient(ellipse at 50% 42%,#102b4d 0%,#070d18 48%,#030509 100%);transition:opacity .65s ease,visibility .65s ease}
+#blackaiIntro.hide{opacity:0;visibility:hidden;pointer-events:none}
+#blackaiIntro .intro-card{width:min(100%,480px);text-align:center;padding:28px 18px;border:1px solid #28558a;border-radius:28px;background:linear-gradient(155deg,#10213aee,#070b13f5);box-shadow:0 0 55px #087bff35,inset 0 0 28px #1d5b9b22;animation:introRise .85s ease both}
+#blackaiIntro .intro-logo-wrap{width:min(62vw,245px);aspect-ratio:1;margin:0 auto 8px;position:relative;display:grid;place-items:center;animation:introFloat 3.4s ease-in-out infinite}
+#blackaiIntro .intro-logo-wrap:before{content:"";position:absolute;inset:5%;border-radius:50%;border:1px solid #48aaff88;box-shadow:0 0 25px #168cff88,inset 0 0 24px #168cff44;animation:introPulse 2.4s ease-in-out infinite}
+#blackaiIntro .intro-logo-wrap:after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:#58baff;border-right-color:#ed3049;animation:introSpin 4.5s linear infinite}
+#blackaiIntro img{width:82%;height:82%;object-fit:contain;filter:drop-shadow(0 0 19px #168cffbb)}
+#blackaiIntro h2{font-size:clamp(38px,10vw,58px);font-style:italic;font-weight:950;letter-spacing:2px;margin:5px 0 10px;text-shadow:0 0 18px #168cff77}
+#blackaiIntro h2 span{color:#ed3049}
+#blackaiIntro .intro-tag{color:#d5e5fa;font-size:13px;font-weight:800;letter-spacing:2px}
+#blackaiIntro .intro-line{width:112px;height:4px;border-radius:5px;margin:18px auto;background:linear-gradient(90deg,#167dff,#fff,#ed3049)}
+#blackaiIntro .intro-sub{color:#afc2dc;font-size:14px}
+#blackaiIntro button{margin-top:21px;padding:11px 24px;border:1px solid #477eb8;border-radius:24px;background:#112b4a;color:#fff;font-weight:700;box-shadow:0 0 16px #168cff44}
+@keyframes introSpin{to{transform:rotate(360deg)}}
+@keyframes introPulse{50%{transform:scale(1.07);opacity:.55}}
+@keyframes introFloat{50%{transform:translateY(-8px)}}
+@keyframes introRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#blackaiIntro *,#blackaiIntro:before{animation:none!important;transition:none!important}}
+
 </style>
 <meta name="google-site-verification" content="TWdjJD0aLAyMovgxTUS2IBVVA-a9gpma0eUcT-4apSA" />
 </head>
 <body>
+<div id="blackaiIntro" role="dialog" aria-label="BLACKAI welcome screen">
+ <div class="intro-card">
+  <div class="intro-logo-wrap"><img src="blackai-logo.svg" alt="BLACKAI eagle shield logo"></div>
+  <h2>BLACK<span>AI</span></h2>
+  <div class="intro-tag">PERSONAL SAFETY • SMART PROTECTION</div>
+  <div class="intro-line"></div>
+  <div class="intro-sub">आपकी सुरक्षा, हमारी प्राथमिकता</div>
+  <button type="button" id="blackaiIntroSkip">आगे बढ़ें</button>
+ </div>
+</div>
+
 
 <div id="liveViewer" style="display:none;max-width:520px;margin:8vh auto;background:#171b23;border:1px solid #303440;border-radius:18px;padding:22px"><h1 style="color:#ed354d">BLACKAI Live Location</h1><p id="liveViewerStatus">लोकेशन लोड हो रही है…</p><a id="liveViewerMap" target="_blank" rel="noopener" style="display:none;color:#8ec5ff">Google Maps पर लोकेशन देखें</a><p style="color:#9ba4b3;font-size:12px">यह लिंक अधिकतम 5 घंटे के लिए है। लोकेशन अपडेट तभी आएगी जब शेयर करने वाले का पेज और लोकेशन सेवा सक्रिय हों।</p></div>
 <div id="authGate">
@@ -1708,6 +1739,17 @@ async function loadBLACKAIAdminTickets(){
 
 </script>
 
+<script>
+(function(){
+ const intro=document.getElementById("blackaiIntro");
+ if(!intro)return;
+ let closed=false;
+ function closeIntro(){if(closed)return;closed=true;intro.classList.add("hide");setTimeout(()=>intro.remove(),700);}
+ const skip=document.getElementById("blackaiIntroSkip");
+ if(skip)skip.addEventListener("click",closeIntro);
+ setTimeout(closeIntro,3800);
+})();
+</script>
 </body>
   </html>
     
