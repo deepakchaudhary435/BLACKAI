@@ -396,7 +396,15 @@ async function logoutBLACKAI(){
  try{await auth.signOut();}
  catch(e){alert("Logout नहीं हो पाया। इंटरनेट जांचकर फिर कोशिश करें।");}
 }
-auth.onAuthStateChanged(user=>{
+let blackaiSessionUid=null;
+auth.onAuthStateChanged(async user=>{
+ const nextUid=user?user.uid:null;
+ if(blackaiSessionUid && blackaiSessionUid!==nextUid){
+  try{await stopLiveLocation();}catch(e){}
+  try{if(blackaiVoiceRecognition)blackaiVoiceRecognition.abort();}catch(e){}
+  try{if("speechSynthesis" in window)speechSynthesis.cancel();}catch(e){}
+ }
+ blackaiSessionUid=nextUid;
  if(user && window.blackaiLoadHistory) window.blackaiLoadHistory();
  const gate=document.getElementById("authGate");
  const app=document.getElementById("appContent");
@@ -425,8 +433,14 @@ auth.onAuthStateChanged(user=>{
  }else{
   contacts=[];
   sosHistory=[];
+  if(typeof blackaiChats!=="undefined")blackaiChats=[];
+  if(typeof blackaiCurrentChatId!=="undefined")blackaiCurrentChatId=null;
+  const aiBox=document.getElementById("aiMessages");if(aiBox)aiBox.textContent="Login करने पर आपकी निजी चैट दिखाई देगी।";
+  const aiSelect=document.getElementById("aiHistory");if(aiSelect){aiSelect.innerHTML="";const opt=document.createElement("option");opt.value="";opt.textContent="चैट हिस्ट्री";aiSelect.appendChild(opt);}
+  const aiInput=document.getElementById("aiInput");if(aiInput)aiInput.value="";
   renderSOSHistory();
   renderContacts();
+  renderHomeProfile();
   const old=document.getElementById("logoutBtn");if(old)old.remove();
  }
 });
