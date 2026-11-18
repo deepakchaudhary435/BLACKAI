@@ -323,6 +323,8 @@ input{
  <div id="supportAdminPanel" style="display:none;margin-top:18px;border-top:1px solid #465064;padding-top:14px">
   <h3>🔐 Admin Support Panel</h3>
   <p class="sensor-foot">यह हिस्सा केवल अधिकृत Admin अकाउंट के लिए है। नई रिपोर्ट को मुफ्त में WhatsApp पर साझा करने के लिए नीचे दिया बटन दबाएँ; मैसेज भेजने से पहले WhatsApp में खुद पुष्टि करें।</p>
+  <div id="blackaiNewReportNotice" class="contact" role="status" aria-live="polite" style="margin:10px 0;padding:10px;font-weight:bold">🔔 नई रिपोर्ट: 0</div>
+  <button class="sensor-connect" type="button" onclick="markBLACKAIReportsSeen()">नई रिपोर्ट देख ली</button>
   <button class="sensor-connect" type="button" onclick="loadBLACKAIAdminTickets()">रिपोर्ट रिफ्रेश करें</button>
   <div id="allSupportTickets" aria-live="polite"></div>
  </div>
@@ -1417,6 +1419,19 @@ function startBLACKAIAdminLiveUpdates(user){
 }
 // BLACKAI Help & Support functions
 const BLACKAI_SUPPORT_ADMIN_UID = "YbAdMPt1pYP74CzKCSNnCmmyTG73";
+function blackaiSupportSeenKey(){return "blackai_support_seen_"+BLACKAI_SUPPORT_ADMIN_UID;}
+function blackaiSupportSeenIds(){
+ try{const v=JSON.parse(localStorage.getItem(blackaiSupportSeenKey())||"[]");return new Set(Array.isArray(v)?v:[]);}catch(e){return new Set();}
+}
+async function markBLACKAIReportsSeen(){
+ const user=auth.currentUser;if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID)return;
+ try{
+  const snap=await liveDB.ref("supportTickets").once("value"),tickets=snap.val()||{},ids=[];
+  Object.entries(tickets).forEach(([uid,userTickets])=>Object.keys(userTickets||{}).forEach(id=>ids.push(uid+"/"+id)));
+  localStorage.setItem(blackaiSupportSeenKey(),JSON.stringify(ids));
+  loadBLACKAIAdminTickets();
+ }catch(e){alert("रिपोर्ट की स्थिति अपडेट नहीं हो सकी।");}
+}
 function blackaiSupportDate(value){
  const n=Number(value);return Number.isFinite(n)?new Date(n).toLocaleString("hi-IN"):"समय उपलब्ध नहीं";
 }
@@ -1490,6 +1505,10 @@ async function loadBLACKAIAdminTickets(){
    liveDB.ref("supportReplies").once("value")
   ]);
   const tickets=ticketsSnap.val()||{},replies=repliesSnap.val()||{};
+  const seenIds=blackaiSupportSeenIds(),unseenIds=[];
+  Object.entries(tickets).forEach(([uid,userTickets])=>Object.keys(userTickets||{}).forEach(id=>{if(!seenIds.has(uid+"/"+id))unseenIds.push(uid+"/"+id);}));
+  const notice=document.getElementById("blackaiNewReportNotice");
+  if(notice)notice.textContent="🔔 नई रिपोर्ट: "+unseenIds.length+(unseenIds.length?" — "+unseenIds.length+" रिपोर्ट अभी नहीं देखी गई हैं।":" — सभी रिपोर्ट देख ली गई हैं।");
   area.innerHTML="";
   let count=0;
   const totals={all:0,pending:0,inProgress:0,solved:0};
@@ -1515,6 +1534,11 @@ async function loadBLACKAIAdminTickets(){
    Object.entries(userTickets||{}).forEach(([ticketId,ticket])=>{
     count++;
     const card=blackaiSupportNode("div","","contact");card.style.cssText="display:block;margin:10px 0;padding:12px";
+    if(!seenIds.has(uid+"/"+ticketId)){
+     const fresh=blackaiSupportNode("span","🔔 नई रिपोर्ट");
+     fresh.style.cssText="display:inline-block;margin:0 0 8px 8px;padding:4px 8px;border-radius:6px;background:#7a2424;color:white;font-weight:bold";
+     card.appendChild(fresh);
+    }
     card.appendChild(blackaiSupportNode("b","यूज़र UID: "+uid));
     const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
     card.appendChild(blackaiSupportNode("small","समय: "+blackaiSupportDate(ticket.createdAt)));
