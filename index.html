@@ -321,6 +321,7 @@ input{
  <h3>मेरी रिपोर्ट और जवाब</h3>
  <div id="blackaiReplyNotice" class="contact" role="status" aria-live="polite" style="margin:10px 0;padding:10px;font-weight:bold">🔔 नए जवाब: 0</div>
  <button class="sensor-connect" type="button" onclick="markBLACKAIRepliesSeen()">जवाब देख लिए</button>
+ <input id="blackaiUserSupportSearch" type="search" maxlength="120" placeholder="अपनी रिपोर्ट या जवाब खोजें…" aria-label="अपनी रिपोर्ट या जवाब खोजें" style="width:100%;box-sizing:border-box;margin:8px 0;padding:11px;background:#171b23;color:white;border:1px solid #444;border-radius:8px">
  <div id="mySupportTickets" aria-live="polite"><div class="contact">रिपोर्ट लोड हो रही हैं…</div></div>
  <div id="supportAdminPanel" style="display:none;margin-top:18px;border-top:1px solid #465064;padding-top:14px">
   <h3>🔐 Admin Support Panel</h3>
@@ -328,6 +329,7 @@ input{
   <div id="blackaiNewReportNotice" class="contact" role="status" aria-live="polite" style="margin:10px 0;padding:10px;font-weight:bold">🔔 नई रिपोर्ट: 0</div>
   <button class="sensor-connect" type="button" onclick="markBLACKAIReportsSeen()">नई रिपोर्ट देख ली</button>
   <button class="sensor-connect" type="button" onclick="loadBLACKAIAdminTickets()">रिपोर्ट रिफ्रेश करें</button>
+  <input id="blackaiAdminSupportSearch" type="search" maxlength="120" placeholder="रिपोर्ट, UID या जवाब खोजें…" aria-label="Admin रिपोर्ट खोजें" style="width:100%;box-sizing:border-box;margin:8px 0;padding:11px;background:#171b23;color:white;border:1px solid #444;border-radius:8px">
   <div id="allSupportTickets" aria-live="polite"></div>
  </div>
 </section>
@@ -1460,6 +1462,14 @@ async function markBLACKAIReportsSeen(){
   loadBLACKAIAdminTickets();
  }catch(e){alert("रिपोर्ट की स्थिति अपडेट नहीं हो सकी।");}
 }
+function filterBLACKAISupportCards(inputId,listId){
+ const input=document.getElementById(inputId),list=document.getElementById(listId);
+ if(!input||!list)return;
+ const term=input.value.trim().toLocaleLowerCase();
+ list.querySelectorAll("[data-ticket-card='true']").forEach(card=>{
+  card.style.display=card.textContent.toLocaleLowerCase().includes(term)?"block":"none";
+ });
+}
 function blackaiSupportDate(value){
  const n=Number(value);return Number.isFinite(n)?new Date(n).toLocaleString("hi-IN"):"समय उपलब्ध नहीं";
 }
@@ -1488,7 +1498,7 @@ async function loadBLACKAISupport(){
   const entries=Object.entries(tickets).sort((a,b)=>(Number(b[1]?.createdAt)||0)-(Number(a[1]?.createdAt)||0));
   if(!entries.length){mine.appendChild(blackaiSupportNode("div","अभी आपने कोई रिपोर्ट नहीं भेजी है।","contact"));return;}
   entries.forEach(([id,ticket])=>{
-   const card=blackaiSupportNode("div","","contact");card.style.cssText="display:block;margin:10px 0;padding:12px";
+   const card=blackaiSupportNode("div","","contact");card.dataset.ticketCard="true";card.style.cssText="display:block;margin:10px 0;padding:12px";
    card.appendChild(blackaiSupportNode("b","आपकी रिपोर्ट"));
    const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
    card.appendChild(blackaiSupportNode("small","भेजने का समय: "+blackaiSupportDate(ticket.createdAt)));
@@ -1507,6 +1517,9 @@ async function loadBLACKAISupport(){
    }else card.appendChild(blackaiSupportNode("p","अभी जवाब नहीं आया है।"));
    mine.appendChild(card);
   });
+  const userSearch=document.getElementById("blackaiUserSupportSearch");
+  if(userSearch)userSearch.oninput=()=>filterBLACKAISupportCards("blackaiUserSupportSearch","mySupportTickets");
+  filterBLACKAISupportCards("blackaiUserSupportSearch","mySupportTickets");
  }catch(e){
   if(mine)mine.textContent="रिपोर्ट लोड नहीं हुईं। Firebase Rules और इंटरनेट कनेक्शन जांचें।";
  }
@@ -1566,7 +1579,7 @@ async function loadBLACKAIAdminTickets(){
   Object.entries(tickets).forEach(([uid,userTickets])=>{
    Object.entries(userTickets||{}).forEach(([ticketId,ticket])=>{
     count++;
-    const card=blackaiSupportNode("div","","contact");card.style.cssText="display:block;margin:10px 0;padding:12px";
+    const card=blackaiSupportNode("div","","contact");card.dataset.ticketCard="true";card.style.cssText="display:block;margin:10px 0;padding:12px";
     if(!seenIds.has(uid+"/"+ticketId)){
      const fresh=blackaiSupportNode("span","🔔 नई रिपोर्ट");
      fresh.style.cssText="display:inline-block;margin:0 0 8px 8px;padding:4px 8px;border-radius:6px;background:#7a2424;color:white;font-weight:bold";
@@ -1620,6 +1633,9 @@ async function loadBLACKAIAdminTickets(){
     };
     card.appendChild(send);area.appendChild(card);
    });
+  const adminSearch=document.getElementById("blackaiAdminSupportSearch");
+  if(adminSearch)adminSearch.oninput=()=>filterBLACKAISupportCards("blackaiAdminSupportSearch","allSupportTickets");
+  filterBLACKAISupportCards("blackaiAdminSupportSearch","allSupportTickets");
   });
   if(!count)area.appendChild(blackaiSupportNode("div","अभी कोई यूज़र रिपोर्ट नहीं आई है।","contact"));
  }catch(e){
