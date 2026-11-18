@@ -530,8 +530,12 @@ async function startLiveLocation(){
   const link=location.origin+location.pathname+"?live="+liveShareId;
   const c=contacts[Number(idx)];
   const message="BLACKAI Live Location link (5 घंटे तक): "+link+"\nयह लिंक निजी रखें।";
-  if(navigator.share){try{await navigator.share({title:"BLACKAI Live Location",text:c.name+" के लिए: "+message});}catch(e){}}
-  else{prompt(c.name+" को यह लिंक भेजें:",message);}
+  let shared=false;
+  if(navigator.share){
+   try{await navigator.share({title:"BLACKAI Live Location",text:c.name+" के लिए: "+message});shared=true;}
+   catch(e){}
+  }
+  if(!shared){prompt(c.name+" को यह लिंक भेजें:",message);}
   document.getElementById("liveLocationStatus").textContent="Live Location चालू है। पेज खुला रखें; बंद करने के लिए नीचे Sharing बंद करें दबाएँ।";
   liveWatchId=navigator.geolocation.watchPosition(async p=>{
    if(!liveShareId)return;
@@ -553,16 +557,23 @@ async function showLiveViewer(){
  document.getElementById("appContent").style.display="none";
  const viewer=document.getElementById("liveViewer");viewer.style.display="block";
  const status=document.getElementById("liveViewerStatus"), map=document.getElementById("liveViewerMap");
+ let refreshTimer=null;
  async function refresh(){
   try{
    const snap=await liveDB.ref("liveShares/"+id).once("value"),v=snap.val();
-   if(!v||v.active!==true||!v.expiresAt||Date.now()>v.expiresAt){status.textContent="यह Live Location लिंक बंद हो चुका है या इसकी समय-सीमा समाप्त हो गई है।";map.style.display="none";return;}
+   if(!v||v.active!==true||!v.expiresAt||Date.now()>v.expiresAt){
+    status.textContent="यह Live Location लिंक बंद हो चुका है या इसकी समय-सीमा समाप्त हो गई है।";
+    map.style.display="none";
+    if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}
+    return;
+   }
    if(typeof v.lat!=="number"||typeof v.lng!=="number"||v.lat===0&&v.lng===0){status.textContent="पहली GPS लोकेशन का इंतज़ार है…";return;}
    status.textContent="आखिरी अपडेट: "+new Date(v.updatedAt).toLocaleString("hi-IN");
    map.href="https://maps.google.com/?q="+v.lat+","+v.lng;map.style.display="inline-block";
   }catch(e){status.textContent="लोकेशन नहीं खुल सकी। लिंक या इंटरनेट जांचें।";}
  }
- await refresh();setInterval(refresh,10000);
+ await refresh();
+ if(!refreshTimer)refreshTimer=setInterval(refresh,10000);
 }
 
 
