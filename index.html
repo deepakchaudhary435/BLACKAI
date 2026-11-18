@@ -319,6 +319,8 @@ input{
  <button class="sensor-connect" id="supportSendBtn" type="button" onclick="sendBLACKAISupportTicket()">रिपोर्ट भेजें</button>
  <p id="supportStatus" class="sensor-foot" role="status" aria-live="polite">कृपया पासवर्ड, OTP या निजी बैंक जानकारी न लिखें।</p>
  <h3>मेरी रिपोर्ट और जवाब</h3>
+ <div id="blackaiReplyNotice" class="contact" role="status" aria-live="polite" style="margin:10px 0;padding:10px;font-weight:bold">🔔 नए जवाब: 0</div>
+ <button class="sensor-connect" type="button" onclick="markBLACKAIRepliesSeen()">जवाब देख लिए</button>
  <div id="mySupportTickets" aria-live="polite"><div class="contact">रिपोर्ट लोड हो रही हैं…</div></div>
  <div id="supportAdminPanel" style="display:none;margin-top:18px;border-top:1px solid #465064;padding-top:14px">
   <h3>🔐 Admin Support Panel</h3>
@@ -424,6 +426,7 @@ auth.onAuthStateChanged(async user=>{
   try{if("speechSynthesis" in window)speechSynthesis.cancel();}catch(e){}
  }
  blackaiSessionUid=nextUid;
+ if(typeof startBLACKAIReplyListener==="function") startBLACKAIReplyListener(user);
  if(!user && typeof startBLACKAIAdminLiveUpdates==="function") startBLACKAIAdminLiveUpdates(null);
  if(user && window.blackaiLoadHistory) window.blackaiLoadHistory();
  const gate=document.getElementById("authGate");
@@ -1406,6 +1409,31 @@ window.sendBLACKAIMessage=async function(){
 document.addEventListener("DOMContentLoaded",()=>{blackaiInit().catch(()=>{});if("speechSynthesis" in window){window.loadBLACKAIVoices();speechSynthesis.onvoiceschanged=window.loadBLACKAIVoices;}});
 
 
+// User reply notification live listener
+let blackaiReplyListenerUid=null;
+let blackaiReplyListener=null;
+function startBLACKAIReplyListener(user){
+ if(blackaiReplyListenerUid&&blackaiReplyListener)liveDB.ref("supportReplies/"+blackaiReplyListenerUid).off("value",blackaiReplyListener);
+ blackaiReplyListenerUid=null;blackaiReplyListener=null;
+ if(!user)return;
+ blackaiReplyListenerUid=user.uid;
+ blackaiReplyListener=()=>{loadBLACKAISupport();};
+ liveDB.ref("supportReplies/"+user.uid).on("value",blackaiReplyListener);
+}
+function blackaiReplySeenKey(uid){return "blackai_reply_seen_"+uid;}
+function blackaiReplySeenMap(uid){
+ try{return JSON.parse(localStorage.getItem(blackaiReplySeenKey(uid))||"{}")||{};}catch(e){return {};}
+}
+async function markBLACKAIRepliesSeen(){
+ const user=auth.currentUser;if(!user)return;
+ try{
+  const snap=await liveDB.ref("supportReplies/"+user.uid).once("value");
+  const replies=snap.val()||{},seen=blackaiReplySeenMap(user.uid);
+  Object.entries(replies).forEach(([id,reply])=>{if(reply&&reply.message)seen[id]=Number(reply.createdAt)||Date.now();});
+  localStorage.setItem(blackaiReplySeenKey(user.uid),JSON.stringify(seen));
+  await loadBLACKAISupport();
+ }catch(e){alert("जवाब पढ़े हुए सेव नहीं हो सके।");}
+}
 // Admin report list auto-refresh listener (Firebase Realtime Database)
 let blackaiAdminTicketsListener=null;
 function startBLACKAIAdminLiveUpdates(user){
@@ -1452,6 +1480,11 @@ async function loadBLACKAISupport(){
   if(!mine)return;
   mine.innerHTML="";
   const tickets=ticketSnap.val()||{},replies=replySnap.val()||{};
+  const seenReplies=blackaiReplySeenMap(user.uid);
+  let unreadReplies=0;
+  Object.entries(replies).forEach(([id,reply])=>{if(reply&&reply.message&&(Number(reply.createdAt)||0)>(Number(seenReplies[id])||0))unreadReplies++;});
+  const replyNotice=document.getElementById("blackaiReplyNotice");
+  if(replyNotice)replyNotice.textContent="🔔 नए जवाब: "+unreadReplies+(unreadReplies?" — Admin ने जवाब दिया है।":" — कोई नया जवाब नहीं है।");
   const entries=Object.entries(tickets).sort((a,b)=>(Number(b[1]?.createdAt)||0)-(Number(a[1]?.createdAt)||0));
   if(!entries.length){mine.appendChild(blackaiSupportNode("div","अभी आपने कोई रिपोर्ट नहीं भेजी है।","contact"));return;}
   entries.forEach(([id,ticket])=>{
