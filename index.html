@@ -172,6 +172,14 @@ input{
   <span>📞</span><b>Call contact</b>
   <span>Fast dial</span>
  </button>
+ <button class="action" type="button" onclick="callEmergencyService('112','Police / पुलिस')">
+  <span>🚓</span><b>Police सहायता</b>
+  <span>112 • भारत का आपातकालीन नंबर</span>
+ </button>
+ <button class="action" type="button" onclick="callEmergencyService('108','Ambulance / एम्बुलेंस')">
+  <span>🚑</span><b>Ambulance बुलाएँ</b>
+  <span>108 • एम्बुलेंस सेवा</span>
+ </button>
  <button class="action" onclick="shareLocation()">
   <span>➤</span><b>Share location</b>
   <span>Share with circle</span>
@@ -527,6 +535,12 @@ function startSOS(){
   location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
  },3000);
 }
+function callEmergencyService(number,service){
+ if(!confirm(service+" के लिए "+number+" पर कॉल करने हेतु Phone app खोलें?"))return;
+ log(service+" कॉल विकल्प खोला - "+new Date().toLocaleTimeString());
+ window.location.href="tel:"+number;
+}
+
 function voiceAlert(){
  if(!("speechSynthesis" in window)){
   alert("Voice feature unavailable.");
