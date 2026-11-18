@@ -138,6 +138,7 @@ input{
 </head>
 <body>
 
+<div id="liveViewer" style="display:none;max-width:520px;margin:8vh auto;background:#171b23;border:1px solid #303440;border-radius:18px;padding:22px"><h1 style="color:#ed354d">BLACKAI Live Location</h1><p id="liveViewerStatus">लोकेशन लोड हो रही है…</p><a id="liveViewerMap" target="_blank" rel="noopener" style="display:none;color:#8ec5ff">Google Maps पर लोकेशन देखें</a><p style="color:#9ba4b3;font-size:12px">यह लिंक अधिकतम 5 घंटे के लिए है। लोकेशन अपडेट तभी आएगी जब शेयर करने वाले का पेज और लोकेशन सेवा सक्रिय हों।</p></div>
 <div id="authGate">
  <h1>BLACKAI</h1>
  <h2 id="authTitle" style="margin:8px 0">Login to continue</h2>
@@ -230,6 +231,15 @@ input{
  </div>
 </div>
 
+<section id="liveLocationCard" class="sensor-dashboard">
+ <h2 style="margin:0 0 10px">📍 5 घंटे Live Location</h2>
+ <p class="sensor-intro">अपनी लोकेशन चुने हुए Trusted Contact के साथ लिंक द्वारा शेयर करें। शुरू करने के बाद यह पेज खुला रखें।</p>
+ <select id="liveContact" style="width:100%;padding:13px;background:#171b23;color:white;border:1px solid #444;border-radius:10px"><option value="">Trusted Contact चुनें</option></select>
+ <button class="sensor-connect" type="button" onclick="startLiveLocation()">▶ Live Location शुरू करें</button>
+ <button class="sensor-connect" type="button" onclick="stopLiveLocation()" style="background:#47232b;border-color:#8b3c4b">■ Sharing बंद करें</button>
+ <p id="liveLocationStatus" class="sensor-foot" aria-live="polite">अभी Live Location बंद है।</p>
+</section>
+
 <h2>Trusted circle</h2>
 <div id="contacts"></div>
 <input id="contactName" placeholder="Contact name">
@@ -263,6 +273,7 @@ input{
 
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-database-compat.js"></script>
 <script>
 const firebaseConfig = {
  apiKey: "AIzaSyDlymowey_AyTDqmv_46CVITCYi1CpBmDc",
@@ -275,7 +286,9 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+const liveDB = firebase.database();
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+ if(new URLSearchParams(location.search).has("live"))showLiveViewer();
 let authMode = "login";
 function toggleAuthMode(){
  authMode = authMode === "login" ? "signup" : "login";
@@ -367,6 +380,66 @@ try {
   contacts = [];
 }
 let currentLocation=null;
+let liveWatchId=null, liveShareId=null, liveExpiryTimer=null;
+function fillLiveContacts(){
+ const sel=document.getElementById("liveContact"); if(!sel)return;
+ sel.innerHTML='<option value="">Trusted Contact चुनें</option>';
+ contacts.forEach((c,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=c.name+" - "+c.phone;sel.appendChild(o);});
+}
+function randomShareId(){
+ const bytes=new Uint8Array(24); crypto.getRandomValues(bytes);
+ return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function startLiveLocation(){
+ if(liveWatchId!==null){alert("Live Location पहले से चालू है।");return;}
+ const idx=document.getElementById("liveContact").value;
+ if(idx===""){alert("पहले Trusted Contact चुनें।");return;}
+ if(!auth.currentUser){alert("पहले BLACKAI में Login करें।");return;}
+ if(!navigator.geolocation){alert("इस ब्राउज़र में GPS उपलब्ध नहीं है।");return;}
+ if(!confirm("क्या आप अपनी Live Location इस Trusted Contact के साथ अधिकतम 5 घंटे शेयर करना चाहते हैं? लिंक पाने वाला व्यक्ति आपकी लोकेशन देख सकेगा।"))return;
+ liveShareId=randomShareId();
+ const now=Date.now(), expiresAt=now+5*60*60*1000;
+ const ref=liveDB.ref("liveShares/"+liveShareId);
+ try{
+  await ref.set({uid:auth.currentUser.uid,lat:0,lng:0,updatedAt:now,expiresAt,active:true});
+  const link=location.origin+location.pathname+"?live="+liveShareId;
+  const c=contacts[Number(idx)];
+  const message="BLACKAI Live Location link (5 घंटे तक): "+link+"\nयह लिंक निजी रखें।";
+  if(navigator.share){try{await navigator.share({title:"BLACKAI Live Location",text:c.name+" के लिए: "+message});}catch(e){}}
+  else{prompt(c.name+" को यह लिंक भेजें:",message);}
+  document.getElementById("liveLocationStatus").textContent="Live Location चालू है। पेज खुला रखें; बंद करने के लिए नीचे Sharing बंद करें दबाएँ।";
+  liveWatchId=navigator.geolocation.watchPosition(async p=>{
+   if(!liveShareId)return;
+   try{await ref.update({lat:p.coords.latitude,lng:p.coords.longitude,updatedAt:Date.now(),active:true});}
+   catch(e){document.getElementById("liveLocationStatus").textContent="अपडेट नहीं हो पाया। इंटरनेट और Firebase Rules जांचें।";}
+  },e=>{document.getElementById("liveLocationStatus").textContent="GPS अपडेट नहीं मिल रहा। Location permission और GPS जांचें।";},{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+  liveExpiryTimer=setTimeout(stopLiveLocation,5*60*60*1000);
+ }catch(e){liveShareId=null;alert("Live Location शुरू नहीं हो पाई। Firebase Database Rules और इंटरनेट जांचें।");}
+}
+async function stopLiveLocation(){
+ if(liveWatchId!==null){navigator.geolocation.clearWatch(liveWatchId);liveWatchId=null;}
+ if(liveExpiryTimer){clearTimeout(liveExpiryTimer);liveExpiryTimer=null;}
+ if(liveShareId){const id=liveShareId;liveShareId=null;try{await liveDB.ref("liveShares/"+id).update({active:false,updatedAt:Date.now()});}catch(e){}}
+ const status=document.getElementById("liveLocationStatus");if(status)status.textContent="Live Location बंद है।";
+}
+async function showLiveViewer(){
+ const id=new URLSearchParams(location.search).get("live");if(!id)return;
+ document.getElementById("authGate").style.display="none";
+ document.getElementById("appContent").style.display="none";
+ const viewer=document.getElementById("liveViewer");viewer.style.display="block";
+ const status=document.getElementById("liveViewerStatus"), map=document.getElementById("liveViewerMap");
+ async function refresh(){
+  try{
+   const snap=await liveDB.ref("liveShares/"+id).once("value"),v=snap.val();
+   if(!v||v.active!==true||!v.expiresAt||Date.now()>v.expiresAt){status.textContent="यह Live Location लिंक बंद हो चुका है या इसकी समय-सीमा समाप्त हो गई है।";map.style.display="none";return;}
+   if(typeof v.lat!=="number"||typeof v.lng!=="number"||v.lat===0&&v.lng===0){status.textContent="पहली GPS लोकेशन का इंतज़ार है…";return;}
+   status.textContent="आखिरी अपडेट: "+new Date(v.updatedAt).toLocaleString("hi-IN");
+   map.href="https://maps.google.com/?q="+v.lat+","+v.lng;map.style.display="inline-block";
+  }catch(e){status.textContent="लोकेशन नहीं खुल सकी। लिंक या इंटरनेट जांचें।";}
+ }
+ await refresh();setInterval(refresh,10000);
+}
+
 
 function log(text){
  document.getElementById("activity").textContent=text;
