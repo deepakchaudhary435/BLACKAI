@@ -1449,6 +1449,10 @@ async function loadBLACKAISupport(){
    const statusLine=blackaiSupportNode("p","स्थिति: "+statusText);
    statusLine.style.cssText="color:#f0c674;margin-top:8px;font-weight:bold";
    card.appendChild(statusLine);
+   const priorityText=reply&&reply.priority?reply.priority:"Medium";
+   const priorityLine=blackaiSupportNode("p","Priority: "+priorityText);
+   priorityLine.style.cssText="color:#f0c674;margin-top:6px;font-weight:bold";
+   card.appendChild(priorityLine);
    if(reply&&reply.message){
     const r=blackaiSupportNode("p","Admin का जवाब: "+String(reply.message));r.style.cssText="white-space:pre-wrap;color:#8fe0ae;margin-top:10px";card.appendChild(r);
     card.appendChild(blackaiSupportNode("small","जवाब का समय: "+blackaiSupportDate(reply.createdAt)));
@@ -1516,6 +1520,17 @@ async function loadBLACKAIAdminTickets(){
      finally{statusSelect.disabled=false;}
     };
     card.appendChild(statusSelect);
+    const prioritySelect=document.createElement("select");
+    prioritySelect.style.cssText="display:block;width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";
+    [["High","🔴 High – बहुत जरूरी"],["Medium","🟠 Medium – सामान्य"],["Low","🟢 Low – कम जरूरी"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent=label;prioritySelect.appendChild(option);});
+    prioritySelect.value=previous&&previous.priority?previous.priority:"Medium";
+    prioritySelect.onchange=async()=>{
+     prioritySelect.disabled=true;
+     try{await liveDB.ref("supportReplies/"+uid+"/"+ticketId+"/priority").set(prioritySelect.value);prioritySelect.style.borderColor="#58c98b";}
+     catch(e){alert("Priority सेव नहीं हुई। Firebase Rules जांचें।");prioritySelect.value=previous&&previous.priority?previous.priority:"Medium";}
+     finally{prioritySelect.disabled=false;}
+    };
+    card.appendChild(prioritySelect);
     if(previous&&previous.message){const old=blackaiSupportNode("p","पहला जवाब: "+String(previous.message));old.style.whiteSpace="pre-wrap";card.appendChild(old);}
     const replyBox=document.createElement("textarea");replyBox.rows=2;replyBox.maxLength=2000;replyBox.placeholder="यूज़र को जवाब लिखें…";replyBox.style.cssText="width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";card.appendChild(replyBox);
     const send=document.createElement("button");send.type="button";send.textContent="जवाब भेजें";send.className="sensor-connect";
