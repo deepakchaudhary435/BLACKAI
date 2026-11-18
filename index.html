@@ -467,7 +467,7 @@ function loadTrustedContacts(uid){
  renderContacts();
 }
 function saveTrustedContacts(nextContacts){
- const user=auth.currentUser;
+ var user=auth.currentUser;
  if(!user){alert("Trusted Contacts सेव करने के लिए पहले Login करें।");return false;}
  try{localStorage.setItem(trustedContactsKey(user.uid),JSON.stringify(nextContacts));return true;}
  catch(e){alert("Contact सेव नहीं हो सका। Browser storage जांचें।");return false;}
@@ -535,7 +535,7 @@ async function showLiveViewer(){
 
 
 function backupBLACKAI(){
- const user=auth.currentUser, status=document.getElementById("backupStatus");
+ var user=auth.currentUser, status=document.getElementById("backupStatus");
  if(!user){status.textContent="पहले Login करें।";return;}
  try{
   const uid=user.uid;
@@ -559,7 +559,7 @@ function backupBLACKAI(){
  }catch(e){status.textContent="Backup नहीं बन पाया। फोन की storage और browser permission जांचें।";}
 }
 function checkBLACKAIBackupReminder(showAlert){
- const user=auth.currentUser,status=document.getElementById("backupReminderStatus");
+ var user=auth.currentUser,status=document.getElementById("backupReminderStatus");
  if(!user||!status)return;
  const key="blackai_last_backup_"+user.uid;
  const last=Number(localStorage.getItem(key)||0);
@@ -806,7 +806,7 @@ function saveSOSHistory(status){
  sosHistory=sosHistory.slice(0,10);
  const data=JSON.stringify(sosHistory);
  let saved=false;
- const user=auth.currentUser;if(!user){sosHistory.shift();return;}const key=sosHistoryKey(user.uid);try{localStorage.setItem(key,data);saved=localStorage.getItem(key)===data;}catch(e){}
+ var user=auth.currentUser;if(!user){sosHistory.shift();return;}const key=sosHistoryKey(user.uid);try{localStorage.setItem(key,data);saved=localStorage.getItem(key)===data;}catch(e){}
  try{sessionStorage.setItem(key,data);saved=saved||sessionStorage.getItem(key)===data;}catch(e){}
  renderSOSHistory();
  if(!saved){
@@ -829,8 +829,8 @@ function renderSOSHistory(){
   if(!sosHistory.length)return;
   if(!confirm("क्या आप पूरी SOS History हटाना चाहते हैं?"))return;
   sosHistory=[];
-  const user=auth.currentUser;if(user)try{localStorage.removeItem(sosHistoryKey(user.uid));}catch(e){}
-  const user=auth.currentUser;if(user)try{sessionStorage.removeItem(sosHistoryKey(user.uid));}catch(e){}
+  var user=auth.currentUser;if(user)try{localStorage.removeItem(sosHistoryKey(user.uid));}catch(e){}
+  var user=auth.currentUser;if(user)try{sessionStorage.removeItem(sosHistoryKey(user.uid));}catch(e){}
   renderSOSHistory();
  };
  tools.appendChild(clear);area.appendChild(tools);
@@ -854,8 +854,8 @@ function renderSOSHistory(){
   remove.onclick=function(){
    sosHistory.splice(index,1);
    const data=JSON.stringify(sosHistory);
-   const user=auth.currentUser;if(user)try{localStorage.setItem(sosHistoryKey(user.uid),data);}catch(e){}
-   const user=auth.currentUser;if(user)try{sessionStorage.setItem(sosHistoryKey(user.uid),data);}catch(e){}
+   var user=auth.currentUser;if(user)try{localStorage.setItem(sosHistoryKey(user.uid),data);}catch(e){}
+   var user=auth.currentUser;if(user)try{sessionStorage.setItem(sosHistoryKey(user.uid),data);}catch(e){}
    renderSOSHistory();
   };
   card.append(details,remove);area.appendChild(card);
@@ -978,7 +978,7 @@ function showContacts(){
  document.querySelector("h2:nth-of-type(2)").scrollIntoView({behavior:"smooth"});
 }
 function renderHomeProfile(){
- const user=auth.currentUser;
+ var user=auth.currentUser;
  const panel=document.getElementById("homeProfile");
  if(!panel)return;
  if(!user){panel.textContent="Please log in to view your profile.";return;}
@@ -999,7 +999,7 @@ function renderHomeProfile(){
  panel.append(heading,nameLine,phoneLine);
 }
 function profile(){
- const user=auth.currentUser;
+ var user=auth.currentUser;
  if(!user){alert("Please log in first.");return;}
  const key="blackai_profile_"+user.uid;
  let saved={};
@@ -1061,7 +1061,7 @@ let blackaiVoiceStreamHandled = false;
 let blackaiChats = [];
 let blackaiCurrentChatId = null;
 function blackaiStorageKey(){
- const user=auth.currentUser;
+ var user=auth.currentUser;
  return user ? "blackai_ai_chats_"+user.uid : null;
 }
 function blackaiSaveChats(){
