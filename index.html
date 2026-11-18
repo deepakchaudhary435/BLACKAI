@@ -168,7 +168,7 @@ input{
 <section id="aiChat" aria-label="BLACKAI AI Chat">
  <h2>🤖 BLACKAI AI Chat</h2>
  <p id="aiChatHint">Gemini से हिंदी या अंग्रेज़ी में सवाल पूछें। जवाब AI द्वारा तैयार किए जाते हैं।</p>
- <div class="ai-tools"><select id="aiHistory" aria-label="पुरानी चैट चुनें" onchange="window.openBLACKAIChat(this.value)"><option value="">चैट हिस्ट्री</option></select><button type="button" onclick="window.newBLACKAIChat()">+ नई चैट</button></div>
+ <div class="ai-tools"><select id="aiHistory" aria-label="पुरानी चैट चुनें" onchange="window.openBLACKAIChat(this.value)"><option value="">चैट हिस्ट्री</option></select><button type="button" onclick="window.newBLACKAIChat()">+ नई चैट</button><button type="button" onclick="window.deleteBLACKAIChat()">चैट डिलीट</button></div><input id="aiHistorySearch" type="search" placeholder="पुरानी चैट खोजें..." oninput="window.searchBLACKAIChats(this.value)" aria-label="चैट हिस्ट्री खोजें">
  <div id="aiMessages" aria-live="polite"><div class="ai-message ai-bot">नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?</div></div>
  <textarea id="aiInput" rows="2" placeholder="अपना सवाल लिखें..." aria-label="अपना सवाल लिखें"></textarea>
  <button id="aiSend" type="button" onclick="window.sendBLACKAIMessage()">भेजें</button>
@@ -541,16 +541,30 @@ function blackaiSaveChats(){
 function blackaiCurrentChat(){
  return blackaiChats.find(chat=>chat.id===blackaiCurrentChatId);
 }
-function blackaiRefreshHistory(){
+function blackaiRefreshHistory(filter=""){
  const select=document.getElementById("aiHistory");
  if(!select)return;
  select.innerHTML="";
  const first=document.createElement("option");first.value="";first.textContent="चैट हिस्ट्री";select.appendChild(first);
- blackaiChats.slice().sort((a,b)=>b.updated-a.updated).forEach(chat=>{
+ const term=String(filter||"").trim().toLocaleLowerCase();
+ blackaiChats.slice().sort((a,b)=>b.updated-a.updated).filter(chat=>!term||(chat.title||"नई चैट").toLocaleLowerCase().includes(term)||chat.messages.some(m=>String(m.text||"").toLocaleLowerCase().includes(term))).forEach(chat=>{
   const option=document.createElement("option");option.value=chat.id;option.textContent=chat.title||"नई चैट";select.appendChild(option);
  });
  select.value=blackaiCurrentChatId||"";
 }
+window.searchBLACKAIChats=function(term){blackaiRefreshHistory(term);};
+window.deleteBLACKAIChat=function(){
+ const chat=blackaiCurrentChat();
+ if(!chat){document.getElementById("aiStatus").textContent="डिलीट करने के लिए चैट चुनें।";return;}
+ if(!confirm("क्या आप यह चैट हमेशा के लिए डिलीट करना चाहते हैं?"))return;
+ blackaiChats=blackaiChats.filter(item=>item.id!==blackaiCurrentChatId);
+ blackaiCurrentChatId=null;
+ blackaiSaveChats();
+ if(blackaiChats.length){blackaiCurrentChatId=blackaiChats.slice().sort((a,b)=>b.updated-a.updated)[0].id;}
+ else{window.newBLACKAIChat();}
+ blackaiRenderChat();
+ document.getElementById("aiStatus").textContent="चैट डिलीट हो गई।";
+};
 function blackaiRenderChat(){
  const box=document.getElementById("aiMessages");if(!box)return;
  box.innerHTML="";
