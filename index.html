@@ -257,6 +257,16 @@ input{
  <p id="liveLocationStatus" class="sensor-foot" aria-live="polite">अभी Live Location बंद है।</p>
 </section>
 
+<section class="sensor-dashboard" id="safetyChecklistCard">
+ <h2 style="margin:0 0 8px">🧾 Emergency Safety Checklist</h2>
+ <p class="sensor-intro">यह जाँच फोन और ब्राउज़र की उपलब्ध स्थिति दिखाती है। यह आपातकालीन सेवा से कनेक्शन की पुष्टि नहीं करती।</p>
+ <div id="safetyChecklistResults" style="display:grid;gap:9px">
+  <div class="sensor-item">जाँच शुरू करने के लिए नीचे बटन दबाएँ।</div>
+ </div>
+ <button class="sensor-connect" type="button" onclick="runSafetyChecklist()">✓ सुरक्षा जाँच करें</button>
+ <p class="sensor-foot">लोकेशन अनुमति बिना पूछे नहीं बदली जाएगी। GPS जाँच के लिए अलग से आपकी अनुमति माँगी जा सकती है।</p>
+</section>
+
 <section class="sensor-dashboard" id="emergencyAlertCard">
  <h2 style="margin:0 0 8px">🚨 Emergency Alert</h2>
  <p class="sensor-intro">संदेश चुनिंदा Trusted Contacts को SMS ऐप में तैयार होगा। भेजने से पहले Messages ऐप में खुद जाँचकर Send दबाएँ।</p>
@@ -542,6 +552,44 @@ function renderContacts(){
 }
 renderContacts();
 fillLiveContacts();
+async function runSafetyChecklist(){
+ const area=document.getElementById("safetyChecklistResults");
+ if(!area)return;
+ const rows=[];
+ const add=(name,ok,detail)=>rows.push({name,ok,detail});
+ add("Trusted Contacts",Array.isArray(contacts)&&contacts.length>0,contacts.length+" संपर्क उपलब्ध");
+ add("इंटरनेट कनेक्शन",navigator.onLine===true,navigator.onLine?"ब्राउज़र ऑनलाइन दिख रहा है":"ब्राउज़र ऑफलाइन दिख रहा है");
+ add("GPS सुविधा",!!(navigator.geolocation),navigator.geolocation?"इस ब्राउज़र में GPS API उपलब्ध":"इस ब्राउज़र में GPS API उपलब्ध नहीं");
+ add("SOS सुविधा",typeof startSOS==="function","SOS बटन उपलब्ध; संदेश भेजने के लिए खुद पुष्टि करनी होगी");
+ add("SMS विकल्प",!!(navigator.userAgent),"SMS लिंक फोन के मैसेजिंग ऐप में खुल सकता है; उपलब्धता डिवाइस पर निर्भर है");
+ let permissionText="स्थिति जाँची नहीं जा सकी";
+ let permissionOk=false;
+ try{
+  if(navigator.permissions&&navigator.permissions.query){
+   const p=await navigator.permissions.query({name:"geolocation"});
+   permissionText=p.state==="granted"?"लोकेशन अनुमति पहले से मिली है":p.state==="denied"?"लोकेशन अनुमति बंद है":"लोकेशन अनुमति अभी नहीं दी गई";
+   permissionOk=p.state==="granted";
+  }else permissionText="ब्राउज़र अनुमति स्थिति नहीं बताता; लोकेशन इस्तेमाल करते समय पूछ सकता है";
+ }catch(e){permissionText="ब्राउज़र अनुमति स्थिति उपलब्ध नहीं";}
+ add("लोकेशन अनुमति",permissionOk,permissionText);
+ area.innerHTML="";
+ rows.forEach(row=>{
+  const div=document.createElement("div");
+  div.className="sensor-item";
+  div.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:flex-start";
+  const left=document.createElement("div");
+  const title=document.createElement("b");title.textContent=row.name;
+  const detail=document.createElement("small");detail.style.color="#b8c4d5";detail.textContent=row.detail;
+  left.append(title,detail);
+  const badge=document.createElement("span");badge.textContent=row.ok?"✓ उपलब्ध":"! जाँचें";
+  badge.style.cssText="white-space:nowrap;font-size:11px;font-weight:bold;color:"+(row.ok?"#78dba5":"#ffc66d");
+  div.append(left,badge);area.appendChild(div);
+ });
+ const summary=document.createElement("p");
+ summary.className="sensor-foot";
+ summary.textContent=rows.filter(x=>x.ok).length+" / "+rows.length+" जाँचें उपलब्ध। यह केवल डिवाइस-स्तर की जाँच है, सुरक्षा या आपातकालीन सेवा की गारंटी नहीं।";
+ area.appendChild(summary);
+}
 function renderEmergencyRecipients(){
  const area=document.getElementById("emergencyRecipients");
  if(!area)return;
