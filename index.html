@@ -1228,7 +1228,7 @@ function blackaiIsTemporaryError(error){
 function blackaiWait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function blackaiTryModel(model,prompt,label,onChunk){
  let lastError;
- for(let attempt=0;attempt<1;attempt++){
+ for(let attempt=0;attempt<2;attempt++){
   try{
    document.getElementById("aiStatus").textContent=attempt===0?label+" से जवाब आ रहा है...":label+" व्यस्त है। दोबारा कोशिश कर रहे हैं...";
    if(typeof model.generateContentStream==="function"){
@@ -1248,7 +1248,7 @@ async function blackaiTryModel(model,prompt,label,onChunk){
   }catch(error){
    lastError=error;
    if(onChunk)onChunk("");
-   if(!blackaiIsTemporaryError(error)||attempt===0)throw error;
+   if(!blackaiIsTemporaryError(error)||attempt===1)throw error;
    await blackaiWait(1000);
   }
  }
