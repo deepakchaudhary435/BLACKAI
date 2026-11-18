@@ -31,6 +31,21 @@ h1{font-size:30px;margin:28px 0 15px}
 .note{color:#89909e;line-height:1.6;margin-top:35px}
 h2{font-size:22px;margin-top:35px}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+
+.sensor-dashboard{background:linear-gradient(145deg,#171f2c,#10151e);border:1px solid #34445a;border-radius:18px;padding:17px;margin-top:18px}
+.sensor-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sensor-top h2{margin:0;font-size:20px}
+.sensor-pill{background:#382b1b;color:#ffc66d;border:1px solid #76552a;border-radius:20px;padding:7px 10px;font-size:11px;font-weight:bold}
+.sensor-intro{color:#aab6c8;font-size:12px;line-height:1.55;margin:12px 0}
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sensor-item{background:#202a38;border:1px solid #354357;border-radius:13px;padding:13px;min-width:0}
+.sensor-item .sensor-icon{font-size:24px}
+.sensor-item b{display:block;margin-top:8px;font-size:13px}
+.sensor-item small{display:block;color:#f0b86b;margin-top:6px;font-size:11px;line-height:1.4}
+.sensor-connect{width:100%;margin-top:13px;padding:12px;border-radius:11px;border:1px solid #53647b;background:#303b4b;color:#d5ddeb;font-weight:bold}
+.sensor-foot{color:#8795a9;font-size:11px;line-height:1.5;margin:10px 0 0}
+@media(max-width:360px){.sensor-grid{grid-template-columns:1fr}}
+
 .action{
  background:#171b23;border:1px solid #292e3a;
  border-radius:17px;padding:22px 16px;color:white;
@@ -165,6 +180,22 @@ input{
  <p class="note">A 3-second cancel window protects against accidental activation.</p>
  <div id="message"></div>
 </div>
+
+<section class="sensor-dashboard" id="sensorDashboard" aria-labelledby="sensorHeading">
+ <div class="sensor-top">
+  <h2 id="sensorHeading">📡 BLACKAI 50M Smart Sensor</h2>
+  <span class="sensor-pill" id="sensorConnectionStatus">● डिवाइस कनेक्ट नहीं</span>
+ </div>
+ <p class="sensor-intro">स्मार्ट सुरक्षा सेंसर पैनल। वास्तविक पहचान के लिए बाहरी संगत हार्डवेयर डिवाइस जोड़ना जरूरी है। अभी कोई सेंसर सक्रिय नहीं है।</p>
+ <div class="sensor-grid">
+  <div class="sensor-item"><span class="sensor-icon">🚗</span><b>वाहन / टक्कर का खतरा</b><small>हार्डवेयर रडार जरूरी · ऑफलाइन</small></div>
+  <div class="sensor-item"><span class="sensor-icon">🔥</span><b>आग की पहचान</b><small>थर्मल सेंसर / कैमरा जरूरी · ऑफलाइन</small></div>
+  <div class="sensor-item"><span class="sensor-icon">💨</span><b>धुआँ पहचान</b><small>स्मोक सेंसर जरूरी · ऑफलाइन</small></div>
+  <div class="sensor-item"><span class="sensor-icon">👤</span><b>व्यक्ति की हलचल</b><small>रडार / कैमरा जरूरी · ऑफलाइन</small></div>
+ </div>
+ <button class="sensor-connect" type="button" disabled>🔒 हार्डवेयर चुनने के बाद Bluetooth कनेक्ट होगा</button>
+ <p class="sensor-foot">ध्यान दें: 50 मीटर की दूरी हर सेंसर में संभव या प्रमाणित नहीं होती। यह पैनल अभी केवल डैशबोर्ड है, खतरे की वास्तविक पहचान नहीं करता।</p>
+</section>
 
 <h2>Quick actions</h2>
 <div class="actions">
