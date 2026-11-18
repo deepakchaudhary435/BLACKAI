@@ -432,9 +432,16 @@ function startSOS(){
    map=" Location unavailable. Please call me.";
   }
   const text="EMERGENCY! I need help."+map;
+  const recipientNames=contacts.map(c=>c.name+" ("+c.phone+")").join("\n");
+  msg.textContent="SOS message ready. Please review the recipients and confirm before opening Messages.";
+  log("SOS message ready for review - "+new Date().toLocaleTimeString());
+  const confirmed=confirm("Send this emergency message using your messaging app?\n\nTrusted contacts:\n"+recipientNames+"\n\nMessage:\n"+text+"\n\nआपको Messages ऐप में जाकर खुद Send दबाना होगा।");
+  if(!confirmed){
+   msg.textContent="SOS message cancelled. Nothing was sent.";
+   log("SOS cancelled by user - "+new Date().toLocaleTimeString());
+   return;
+  }
   const numbers=contacts.map(c=>c.phone.replace(/\s/g,"")).join(",");
-  msg.textContent="Emergency message prepared. Review and send it from your messaging app.";
-  log("SOS message prepared - "+new Date().toLocaleTimeString());
   location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
  },3000);
 }
