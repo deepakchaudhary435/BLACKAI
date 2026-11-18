@@ -648,9 +648,9 @@ async function blackaiInit() {
    const ai=aiSdk.getAI(app,{backend:new aiSdk.GoogleAIBackend()});
    blackaiAiSdk=aiSdk;
    blackaiAi=ai;
-   blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash",generationConfig:{maxOutputTokens:512,temperature:0.5}});
-   // Backup is a separate stable Firebase AI Logic model.
-   blackaiBackupModel=aiSdk.getGenerativeModel(ai,{model:"gemini-4-hydrogen",generationConfig:{maxOutputTokens:512,temperature:0.5}});
+   blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.5-flash-lite",generationConfig:{maxOutputTokens:256}});
+   // Use Flash as fallback if the faster Flash-Lite model is busy.
+   blackaiBackupModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash",generationConfig:{maxOutputTokens:384}});
    status.textContent="AI तैयार है। सवाल लिखकर भेजें।";
    return blackaiModel;
   } catch(e) {
@@ -664,12 +664,12 @@ async function blackaiInit() {
 }
 function blackaiIsTemporaryError(error){
  const message=String(error?.message||error||"").toLowerCase();
- return /\\b(429|500|502|503|504)\\b|high demand|overloaded|temporarily unavailable|try again|internal error|service unavailable/.test(message);
+ return /\b(429|500|502|503|504)\b|high demand|overloaded|temporarily unavailable|try again|internal error|service unavailable/.test(message);
 }
 function blackaiWait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function blackaiTryModel(model,prompt,label,onChunk){
  let lastError;
- for(let attempt=0;attempt<2;attempt++){
+ for(let attempt=0;attempt<1;attempt++){
   try{
    document.getElementById("aiStatus").textContent=attempt===0?label+" से जवाब आ रहा है...":label+" व्यस्त है। दोबारा कोशिश कर रहे हैं...";
    if(typeof model.generateContentStream==="function"){
@@ -689,7 +689,7 @@ async function blackaiTryModel(model,prompt,label,onChunk){
   }catch(error){
    lastError=error;
    if(onChunk)onChunk("");
-   if(!blackaiIsTemporaryError(error)||attempt===1)throw error;
+   if(!blackaiIsTemporaryError(error)||attempt===0)throw error;
    await blackaiWait(1000);
   }
  }
