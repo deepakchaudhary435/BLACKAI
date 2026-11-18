@@ -379,7 +379,12 @@ async function resetPassword(){
  try{await auth.sendPasswordResetEmail(email);error.textContent="Password reset लिंक आपके ईमेल पर भेज दिया गया है।";}
  catch(e){error.textContent=e.code==="auth/user-not-found"?"इस ईमेल का अकाउंट नहीं मिला.": "Reset लिंक नहीं भेजा जा सका। ईमेल जांचें और फिर कोशिश करें।";}
 }
-function logoutBLACKAI(){auth.signOut();}
+async function logoutBLACKAI(){
+ if(!confirm("Logout करने से पहले BLACKAI की Live Location sharing बंद कर दी जाएगी। क्या Logout करना है?"))return;
+ try{await stopLiveLocation();}catch(e){}
+ try{await auth.signOut();}
+ catch(e){alert("Logout नहीं हो पाया। इंटरनेट जांचकर फिर कोशिश करें।");}
+}
 auth.onAuthStateChanged(user=>{
  if(user && window.blackaiLoadHistory) window.blackaiLoadHistory();
  const gate=document.getElementById("authGate");
