@@ -392,6 +392,7 @@ auth.onAuthStateChanged(user=>{
  gate.style.display=user?"none":"block";
  app.style.display=user?"block":"none";
  if(user){
+  loadTrustedContacts(user.uid);
   const old=document.getElementById("logoutBtn");
   if(!old){
    const b=document.createElement("button");
@@ -409,18 +410,23 @@ auth.onAuthStateChanged(user=>{
   }catch(e){}
   renderHomeProfile();
  }else{
+  contacts=[];
+  renderContacts();
   const old=document.getElementById("logoutBtn");if(old)old.remove();
  }
 });
 let contacts = [];
-
-try {
-  const saved = JSON.parse(
-    localStorage.getItem("blackai_contacts") || "[]"
-  );
-  if (Array.isArray(saved)) contacts = saved;
-} catch (e) {
-  contacts = [];
+function trustedContactsKey(uid){return "blackai_contacts_"+uid;}
+function loadTrustedContacts(uid){
+ try{const saved=JSON.parse(localStorage.getItem(trustedContactsKey(uid))||"[]");contacts=Array.isArray(saved)?saved:[];}
+ catch(e){contacts=[];}
+ renderContacts();
+}
+function saveTrustedContacts(nextContacts){
+ const user=auth.currentUser;
+ if(!user){alert("Trusted Contacts सेव करने के लिए पहले Login करें।");return false;}
+ try{localStorage.setItem(trustedContactsKey(user.uid),JSON.stringify(nextContacts));return true;}
+ catch(e){alert("Contact सेव नहीं हो सका। Browser storage जांचें।");return false;}
 }
 let currentLocation=null;
 let liveWatchId=null, liveShareId=null, liveExpiryTimer=null;
@@ -499,13 +505,9 @@ function addContact(){
   alert("Maximum 5 trusted contacts allowed.");
   return;
  }
+ if(!auth.currentUser){alert("पहले Login करें।");return;}
  const nextContacts=[...contacts,{name,phone}];
- try{
-  localStorage.setItem("blackai_contacts",JSON.stringify(nextContacts));
- }catch(e){
-  alert("Contact could not be saved on this device. Check browser storage settings and try again.");
-  return;
- }
+ if(!saveTrustedContacts(nextContacts))return;
  contacts=nextContacts;
  renderContacts();
  document.getElementById("contactName").value="";
@@ -545,8 +547,7 @@ function renderContacts(){
   remove.onclick=function(){
    if(!confirm("क्या "+c.name+" को Trusted Contacts से हटाना चाहते हैं?"))return;
    const nextContacts=contacts.filter((item,index)=>index!==i);
-   try{localStorage.setItem("blackai_contacts",JSON.stringify(nextContacts));}
-   catch(e){alert("Contact हटाया नहीं जा सका। Browser storage जांचें।");return;}
+   if(!saveTrustedContacts(nextContacts))return;
    contacts=nextContacts;
    renderContacts();
   };
