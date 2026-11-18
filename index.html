@@ -322,7 +322,7 @@ input{
  <div id="mySupportTickets" aria-live="polite"><div class="contact">रिपोर्ट लोड हो रही हैं…</div></div>
  <div id="supportAdminPanel" style="display:none;margin-top:18px;border-top:1px solid #465064;padding-top:14px">
   <h3>🔐 Admin Support Panel</h3>
-  <p class="sensor-foot">यह हिस्सा केवल अधिकृत Admin अकाउंट के लिए है।</p>
+  <p class="sensor-foot">यह हिस्सा केवल अधिकृत Admin अकाउंट के लिए है। नई रिपोर्ट को मुफ्त में WhatsApp पर साझा करने के लिए नीचे दिया बटन दबाएँ; मैसेज भेजने से पहले WhatsApp में खुद पुष्टि करें।</p>
   <button class="sensor-connect" type="button" onclick="loadBLACKAIAdminTickets()">रिपोर्ट रिफ्रेश करें</button>
   <div id="allSupportTickets" aria-live="polite"></div>
  </div>
@@ -1478,6 +1478,14 @@ async function loadBLACKAIAdminTickets(){
     card.appendChild(blackaiSupportNode("b","यूज़र UID: "+uid));
     const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
     card.appendChild(blackaiSupportNode("small","समय: "+blackaiSupportDate(ticket.createdAt)));
+    const waText="BLACKAI पर नई सहायता रिपोर्ट मिली है।\\nयूज़र UID: "+uid+"\\nरिपोर्ट: "+String(ticket.message||"")+"\\nसमय: "+blackaiSupportDate(ticket.createdAt)+"\\nAdmin Panel: "+location.href;
+    const waShare=document.createElement("a");
+    waShare.href="https://wa.me/?text="+encodeURIComponent(waText);
+    waShare.target="_blank";waShare.rel="noopener noreferrer";
+    waShare.textContent="WhatsApp पर रिपोर्ट साझा करें";
+    waShare.className="sensor-connect";
+    waShare.style.cssText="display:inline-block;text-decoration:none;margin-top:10px";
+    card.appendChild(waShare);
     const previous=replies[uid]&&replies[uid][ticketId];
     if(previous&&previous.message){const old=blackaiSupportNode("p","पहला जवाब: "+String(previous.message));old.style.whiteSpace="pre-wrap";card.appendChild(old);}
     const replyBox=document.createElement("textarea");replyBox.rows=2;replyBox.maxLength=2000;replyBox.placeholder="यूज़र को जवाब लिखें…";replyBox.style.cssText="width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";card.appendChild(replyBox);
