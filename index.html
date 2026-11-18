@@ -717,6 +717,9 @@ window.queueBLACKAIStreamSpeech=function(fullText,flush=false){
  const utterance=new SpeechSynthesisUtterance(chunk);
  utterance.lang=/[\u0900-\u097F]/.test(chunk)?"hi-IN":"en-IN";
  utterance.rate=1.05;
+ utterance.onstart=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="BLACKAI बोलकर जवाब दे रहा है…";};
+ utterance.onerror=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="आवाज़ नहीं चल पाई। फोन का मीडिया वॉल्यूम और ब्राउज़र की आवाज़ जांचें।";};
+ speechSynthesis.resume();
  speechSynthesis.speak(utterance);
  blackaiVoiceStreamHandled=true;
 };
@@ -726,6 +729,9 @@ window.speakBLACKAIReply=function(text){
  const utterance=new SpeechSynthesisUtterance(String(text).slice(0,4000));
  utterance.lang=/[\u0900-\u097F]/.test(text)?"hi-IN":"en-IN";
  utterance.rate=1;
+ utterance.onstart=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="BLACKAI बोलकर जवाब दे रहा है…";};
+ utterance.onerror=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="आवाज़ नहीं चल पाई। फोन का मीडिया वॉल्यूम और ब्राउज़र की आवाज़ जांचें।";};
+ speechSynthesis.resume();
  speechSynthesis.speak(utterance);
 };
 window.startBLACKAIVoice=function(){
