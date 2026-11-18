@@ -171,6 +171,7 @@ input{
  <div class="ai-tools"><select id="aiHistory" aria-label="पुरानी चैट चुनें" onchange="window.openBLACKAIChat(this.value)"><option value="">चैट हिस्ट्री</option></select><button type="button" onclick="window.newBLACKAIChat()">+ नई चैट</button><button type="button" onclick="window.deleteBLACKAIChat()">चैट डिलीट</button></div><input id="aiHistorySearch" type="search" placeholder="पुरानी चैट खोजें..." oninput="window.searchBLACKAIChats(this.value)" aria-label="चैट हिस्ट्री खोजें">
  <div id="aiMessages" aria-live="polite"><div class="ai-message ai-bot">नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?</div></div>
  <textarea id="aiInput" rows="2" placeholder="अपना सवाल लिखें..." aria-label="अपना सवाल लिखें"></textarea>
+ <div class="ai-tools"><button id="aiMic" type="button" onclick="window.startBLACKAIVoice()">🎙️ बोलकर पूछें</button><button id="aiSpeakToggle" type="button" onclick="window.toggleBLACKAISpeech()">🔊 आवाज़ में जवाब: बंद</button></div>
  <button id="aiSend" type="button" onclick="window.sendBLACKAIMessage()">भेजें</button>
  <div id="aiStatus" role="status" aria-live="polite"></div>
 </section>
@@ -528,6 +529,8 @@ let blackaiAiSdk = null;
 let blackaiAi = null;
 let blackaiInitPromise = null;
 let blackaiBusy = false;
+let blackaiVoiceRecognition = null;
+let blackaiSpeakReplies = false;
 let blackaiChats = [];
 let blackaiCurrentChatId = null;
 function blackaiStorageKey(){
@@ -598,6 +601,7 @@ function blackaiAddMessage(value, role, save=true) {
  box.appendChild(node);
  box.scrollTop=box.scrollHeight;
  if(save)blackaiStoreMessage(value,role);
+ if(save && role==="bot" && blackaiSpeakReplies) window.speakBLACKAIReply(value);
 }
 window.newBLACKAIChat=function(){
  const id=String(Date.now())+"_"+Math.random().toString(36).slice(2,7);
@@ -679,6 +683,57 @@ async function blackaiTryModel(model,prompt,label){
  }
  throw lastError;
 }
+window.toggleBLACKAISpeech=function(){
+ blackaiSpeakReplies=!blackaiSpeakReplies;
+ const button=document.getElementById("aiSpeakToggle");
+ button.textContent=blackaiSpeakReplies?"🔊 आवाज़ में जवाब: चालू":"🔊 आवाज़ में जवाब: बंद";
+ document.getElementById("aiStatus").textContent=blackaiSpeakReplies?"अब AI जवाब बोलकर सुनाएगा।":"आवाज़ में जवाब बंद है।";
+ if(!blackaiSpeakReplies && "speechSynthesis" in window)speechSynthesis.cancel();
+};
+window.speakBLACKAIReply=function(text){
+ if(!("speechSynthesis" in window)){document.getElementById("aiStatus").textContent="इस ब्राउज़र में आवाज़ सुनाने की सुविधा उपलब्ध नहीं है।";return;}
+ speechSynthesis.cancel();
+ const utterance=new SpeechSynthesisUtterance(String(text).slice(0,4000));
+ utterance.lang=/[\\u0900-\\u097F]/.test(text)?"hi-IN":"en-IN";
+ utterance.rate=1;
+ speechSynthesis.speak(utterance);
+};
+window.startBLACKAIVoice=function(){
+ const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!Recognition){
+  document.getElementById("aiStatus").textContent="इस ब्राउज़र में Speech Recognition उपलब्ध नहीं है। Chrome में साइट खोलकर कोशिश करें।";
+  return;
+ }
+ if(blackaiVoiceRecognition){blackaiVoiceRecognition.stop();blackaiVoiceRecognition=null;}
+ const recognition=new Recognition();
+ blackaiVoiceRecognition=recognition;
+ recognition.lang="hi-IN";
+ recognition.interimResults=false;
+ recognition.maxAlternatives=1;
+ const mic=document.getElementById("aiMic");
+ mic.disabled=true;mic.textContent="🎙️ सुन रहा हूँ...";
+ document.getElementById("aiStatus").textContent="माइक की अनुमति दें और अपना सवाल बोलें।";
+ recognition.onresult=function(event){
+  const transcript=event.results&&event.results[0]&&event.results[0][0]?event.results[0][0].transcript:"";
+  if(transcript){
+   document.getElementById("aiInput").value=transcript;
+   document.getElementById("aiStatus").textContent="आपने कहा: "+transcript;
+   window.sendBLACKAIMessage();
+  }else{
+   document.getElementById("aiStatus").textContent="आवाज़ समझ नहीं आई। फिर कोशिश करें।";
+  }
+ };
+ recognition.onerror=function(event){
+  document.getElementById("aiStatus").textContent=event.error==="not-allowed"?"माइक की अनुमति नहीं मिली। ब्राउज़र सेटिंग में Microphone अनुमति दें।":"आवाज़ रिकॉर्ड नहीं हो पाई। फिर कोशिश करें।";
+ };
+ recognition.onend=function(){
+  blackaiVoiceRecognition=null;mic.disabled=false;mic.textContent="🎙️ बोलकर पूछें";
+ };
+ try{recognition.start();}catch(e){
+  blackaiVoiceRecognition=null;mic.disabled=false;mic.textContent="🎙️ बोलकर पूछें";
+  document.getElementById("aiStatus").textContent="माइक शुरू नहीं हो पाया। फिर कोशिश करें।";
+ }
+};
 window.sendBLACKAIMessage=async function(){
  const input=document.getElementById("aiInput");
  const button=document.getElementById("aiSend");
