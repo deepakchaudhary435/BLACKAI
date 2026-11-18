@@ -523,6 +523,9 @@ const aiFirebaseConfig = {
  measurementId: "G-GMNR4W53RP"
 };
 let blackaiModel = null;
+let blackaiBackupModel = null;
+let blackaiAiSdk = null;
+let blackaiAi = null;
 let blackaiInitPromise = null;
 let blackaiBusy = false;
 let blackaiChats = [];
@@ -639,7 +642,11 @@ async function blackaiInit() {
     isTokenAutoRefreshEnabled:true
    });
    const ai=aiSdk.getAI(app,{backend:new aiSdk.GoogleAIBackend()});
+   blackaiAiSdk=aiSdk;
+   blackaiAi=ai;
    blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-4-hydrogen"});
+   // Backup is a separate stable Firebase AI Logic model.
+   blackaiBackupModel=aiSdk.getGenerativeModel(ai,{model:"gemini-3.8-flash"});
    status.textContent="AI तैयार है। सवाल लिखकर भेजें।";
    return blackaiModel;
   } catch(e) {
@@ -651,6 +658,27 @@ async function blackaiInit() {
  })();
  return blackaiInitPromise;
 }
+function blackaiIsTemporaryError(error){
+ const message=String(error?.message||error||"").toLowerCase();
+ return /\\b(429|500|502|503|504)\\b|high demand|overloaded|temporarily unavailable|try again|internal error|service unavailable/.test(message);
+}
+function blackaiWait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function blackaiTryModel(model,prompt,label){
+ let lastError;
+ for(let attempt=0;attempt<2;attempt++){
+  try{
+   if(attempt===0)document.getElementById("aiStatus").textContent=label+" से जवाब तैयार हो रहा है...";
+   else document.getElementById("aiStatus").textContent=label+" व्यस्त है। दोबारा कोशिश कर रहे हैं...";
+   const result=await model.generateContent(prompt);
+   return result.response.text();
+  }catch(error){
+   lastError=error;
+   if(!blackaiIsTemporaryError(error)||attempt===1)throw error;
+   await blackaiWait(1500);
+  }
+ }
+ throw lastError;
+}
 window.sendBLACKAIMessage=async function(){
  const input=document.getElementById("aiInput");
  const button=document.getElementById("aiSend");
@@ -661,15 +689,21 @@ window.sendBLACKAIMessage=async function(){
  blackaiBusy=true;button.disabled=true;
  blackaiAddMessage(prompt,"user");input.value="";
  try{
-  const model=await blackaiInit();
-  status.textContent="Gemini जवाब तैयार कर रहा है...";
-  const result=await model.generateContent(prompt);
-  const answer=result.response.text();
+  await blackaiInit();
+  let answer;
+  try{
+   answer=await blackaiTryModel(blackaiModel,prompt,"मुख्य AI");
+  }catch(primaryError){
+   if(!blackaiIsTemporaryError(primaryError))throw primaryError;
+   status.textContent="मुख्य AI अभी व्यस्त है। Backup AI पर कोशिश कर रहे हैं...";
+   answer=await blackaiTryModel(blackaiBackupModel,prompt,"Backup AI");
+   status.textContent="Backup AI से जवाब मिल गया।";
+  }
   blackaiAddMessage(answer||"इस बार जवाब नहीं मिला।","bot");
-  status.textContent="जवाब मिल गया।";
+  if(!status.textContent.includes("Backup AI"))status.textContent="जवाब मिल गया।";
  }catch(e){
   console.error("BLACKAI Gemini request error",e);
-  status.textContent="Error: "+String(e?.message||e).slice(0,220);
+  status.textContent="अभी AI जवाब नहीं दे पाया। थोड़ी देर बाद फिर कोशिश करें। ("+String(e?.message||e).slice(0,140)+")";
  }finally{blackaiBusy=false;button.disabled=false;}
 };
 document.addEventListener("DOMContentLoaded",()=>{blackaiInit().catch(()=>{});});
