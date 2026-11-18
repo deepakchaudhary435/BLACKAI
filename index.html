@@ -71,6 +71,8 @@ input{
 .auth-links button{background:none;border:0;color:#ff7888;text-decoration:underline;padding:6px}
 #authError{color:#ff9aa6;line-height:1.5;margin-top:14px;min-height:20px}
 #logoutBtn{background:#252b36;color:#fff;border:1px solid #414958;padding:9px 12px;border-radius:9px;margin-left:8px}
+#homeProfile{background:#171b23;border:1px solid #292e3a;border-radius:15px;padding:16px;margin-top:18px;color:#b9c0ce;line-height:1.7}
+#homeProfile strong{color:#fff}
 
 </style>
 </head>
@@ -103,6 +105,8 @@ input{
 </header>
 
 <h1>Stay ready, BLACKAI.</h1>
+
+<div id="homeProfile" aria-live="polite">Loading profile...</div>
 
 <div class="location" id="location">
  📍 Location is permission-controlled
@@ -233,9 +237,16 @@ auth.onAuthStateChanged(user=>{
    b.id="logoutBtn";b.textContent="Logout";b.onclick=logoutBLACKAI;
    document.querySelector("header").appendChild(b);
   }
-  if(user.displayName){
-   try{localStorage.setItem("blackai_profile",JSON.stringify({name:user.displayName,phone:""}));}catch(e){}
-  }
+  try{
+   const key="blackai_profile_"+user.uid;
+   const saved=JSON.parse(localStorage.getItem(key)||"{}");
+   if(!saved.name && user.displayName){
+    saved.name=user.displayName;
+    saved.phone=saved.phone||"";
+    localStorage.setItem(key,JSON.stringify(saved));
+   }
+  }catch(e){}
+  renderHomeProfile();
  }else{
   const old=document.getElementById("logoutBtn");if(old)old.remove();
  }
@@ -412,13 +423,37 @@ function home(){window.scrollTo({top:0,behavior:"smooth"});}
 function showContacts(){
  document.querySelector("h2:nth-of-type(2)").scrollIntoView({behavior:"smooth"});
 }
-function profile(){
+function renderHomeProfile(){
+ const user=auth.currentUser;
+ const panel=document.getElementById("homeProfile");
+ if(!panel)return;
+ if(!user){panel.textContent="Please log in to view your profile.";return;}
  let saved={};
  try{
-  saved=JSON.parse(localStorage.getItem("blackai_profile")||"{}");
+  saved=JSON.parse(localStorage.getItem("blackai_profile_"+user.uid)||"{}");
   if(!saved || typeof saved!=="object" || Array.isArray(saved))saved={};
  }catch(e){saved={};}
- const name=prompt("Enter your name:",saved.name||"");
+ const name=saved.name||user.displayName||"Name not added";
+ const phone=saved.phone||"Not added";
+ panel.textContent="";
+ const heading=document.createElement("strong");
+ heading.textContent="Your Profile";
+ const nameLine=document.createElement("div");
+ nameLine.textContent="Name: "+name;
+ const phoneLine=document.createElement("div");
+ phoneLine.textContent="Mobile: "+phone;
+ panel.append(heading,nameLine,phoneLine);
+}
+function profile(){
+ const user=auth.currentUser;
+ if(!user){alert("Please log in first.");return;}
+ const key="blackai_profile_"+user.uid;
+ let saved={};
+ try{
+  saved=JSON.parse(localStorage.getItem(key)||"{}");
+  if(!saved || typeof saved!=="object" || Array.isArray(saved))saved={};
+ }catch(e){saved={};}
+ const name=prompt("Enter your name:",saved.name||user.displayName||"");
  if(name===null)return;
  const phone=prompt("Enter your phone number (optional):",saved.phone||"");
  if(phone===null)return;
@@ -434,7 +469,11 @@ function profile(){
  }
  const profileData={name:cleanName,phone:cleanPhone};
  try{
-  localStorage.setItem("blackai_profile",JSON.stringify(profileData));
+  localStorage.setItem(key,JSON.stringify(profileData));
+  if(cleanName!==user.displayName){
+   user.updateProfile({displayName:cleanName}).catch(()=>{});
+  }
+  renderHomeProfile();
   alert("Profile saved on this device.\\nName: "+profileData.name+"\\nPhone: "+(profileData.phone||"Not added"));
   log("Profile updated - "+new Date().toLocaleTimeString());
  }catch(e){
