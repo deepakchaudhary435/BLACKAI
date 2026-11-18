@@ -312,6 +312,22 @@ input{
 <h2>🛡️ SOS History</h2>
 <div id="sosHistory" aria-live="polite"><div class="contact">अभी कोई SOS गतिविधि नहीं है।</div></div>
 
+<section class="sensor-dashboard" id="supportCenter" aria-labelledby="supportHeading">
+ <h2 id="supportHeading">🆘 BLACKAI Help & Support</h2>
+ <p class="sensor-intro">ऐप में आई समस्या यहाँ लिखकर भेजें। आपकी रिपोर्ट केवल आपके अकाउंट और BLACKAI Admin को दिखाई देगी।</p>
+ <textarea id="supportMessage" rows="4" maxlength="2000" style="width:100%;margin-top:10px;padding:12px;border-radius:10px;background:#171b23;color:white;border:1px solid #444" placeholder="अपनी समस्या विस्तार से लिखें..."></textarea>
+ <button class="sensor-connect" id="supportSendBtn" type="button" onclick="sendBLACKAISupportTicket()">रिपोर्ट भेजें</button>
+ <p id="supportStatus" class="sensor-foot" role="status" aria-live="polite">कृपया पासवर्ड, OTP या निजी बैंक जानकारी न लिखें।</p>
+ <h3>मेरी रिपोर्ट और जवाब</h3>
+ <div id="mySupportTickets" aria-live="polite"><div class="contact">रिपोर्ट लोड हो रही हैं…</div></div>
+ <div id="supportAdminPanel" style="display:none;margin-top:18px;border-top:1px solid #465064;padding-top:14px">
+  <h3>🔐 Admin Support Panel</h3>
+  <p class="sensor-foot">यह हिस्सा केवल अधिकृत Admin अकाउंट के लिए है।</p>
+  <button class="sensor-connect" type="button" onclick="loadBLACKAIAdminTickets()">रिपोर्ट रिफ्रेश करें</button>
+  <div id="allSupportTickets" aria-live="polite"></div>
+ </div>
+</section>
+
 <div class="bottom">
  <button class="active" onclick="home()">⌂<br>Home</button>
  <button onclick="shareLocation()">➤<br>Location</button>
@@ -319,7 +335,104 @@ input{
  <button onclick="profile()">●<br>Profile</button>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js">
+const BLACKAI_SUPPORT_ADMIN_UID = "YbAdMPt1pYP74CzKCSNnCmmyTG73";
+function blackaiSupportDate(value){
+ const n=Number(value);return Number.isFinite(n)?new Date(n).toLocaleString("hi-IN"):"समय उपलब्ध नहीं";
+}
+function blackaiSupportNode(tag,text,className){
+ const el=document.createElement(tag);if(className)el.className=className;el.textContent=text;return el;
+}
+async function loadBLACKAISupport(){
+ const user=auth.currentUser;if(!user)return;
+ const mine=document.getElementById("mySupportTickets");
+ const adminPanel=document.getElementById("supportAdminPanel");
+ if(adminPanel)adminPanel.style.display=user.uid===BLACKAI_SUPPORT_ADMIN_UID?"block":"none";
+ if(mine)mine.textContent="रिपोर्ट लोड हो रही हैं…";
+ try{
+  const [ticketSnap,replySnap]=await Promise.all([
+   liveDB.ref("supportTickets/"+user.uid).once("value"),
+   liveDB.ref("supportReplies/"+user.uid).once("value")
+  ]);
+  if(!mine)return;
+  mine.innerHTML="";
+  const tickets=ticketSnap.val()||{},replies=replySnap.val()||{};
+  const entries=Object.entries(tickets).sort((a,b)=>(Number(b[1]?.createdAt)||0)-(Number(a[1]?.createdAt)||0));
+  if(!entries.length){mine.appendChild(blackaiSupportNode("div","अभी आपने कोई रिपोर्ट नहीं भेजी है।","contact"));return;}
+  entries.forEach(([id,ticket])=>{
+   const card=blackaiSupportNode("div","","contact");card.style.cssText="display:block;margin:10px 0;padding:12px";
+   card.appendChild(blackaiSupportNode("b","आपकी रिपोर्ट"));
+   const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
+   card.appendChild(blackaiSupportNode("small","भेजने का समय: "+blackaiSupportDate(ticket.createdAt)));
+   const reply=replies[id];
+   if(reply&&reply.message){
+    const r=blackaiSupportNode("p","Admin का जवाब: "+String(reply.message));r.style.cssText="white-space:pre-wrap;color:#8fe0ae;margin-top:10px";card.appendChild(r);
+    card.appendChild(blackaiSupportNode("small","जवाब का समय: "+blackaiSupportDate(reply.createdAt)));
+   }else card.appendChild(blackaiSupportNode("p","अभी जवाब नहीं आया है।"));
+   mine.appendChild(card);
+  });
+ }catch(e){
+  if(mine)mine.textContent="रिपोर्ट लोड नहीं हुईं। Firebase Rules और इंटरनेट कनेक्शन जांचें।";
+ }
+ if(user.uid===BLACKAI_SUPPORT_ADMIN_UID)loadBLACKAIAdminTickets();
+}
+async function sendBLACKAISupportTicket(){
+ const user=auth.currentUser,field=document.getElementById("supportMessage"),status=document.getElementById("supportStatus"),button=document.getElementById("supportSendBtn");
+ if(!user){status.textContent="पहले Login करें।";return;}
+ const message=field.value.trim();
+ if(message.length<5){status.textContent="कृपया समस्या कम-से-कम 5 अक्षरों में लिखें।";return;}
+ if(message.length>2000){status.textContent="रिपोर्ट 2000 अक्षरों से छोटी रखें।";return;}
+ button.disabled=true;status.textContent="रिपोर्ट भेजी जा रही है…";
+ try{
+  const ref=liveDB.ref("supportTickets/"+user.uid).push();
+  await ref.set({userId:user.uid,message:message,createdAt:Date.now()});
+  field.value="";status.textContent="आपकी रिपोर्ट Admin तक सुरक्षित रूप से भेज दी गई है।";
+  await loadBLACKAISupport();
+ }catch(e){
+  status.textContent="रिपोर्ट नहीं भेजी जा सकी। Firebase Rules/इंटरनेट जांचें और फिर कोशिश करें।";
+ }finally{button.disabled=false;}
+}
+async function loadBLACKAIAdminTickets(){
+ const user=auth.currentUser,area=document.getElementById("allSupportTickets");
+ if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID){if(area)area.textContent="Admin अनुमति आवश्यक है।";return;}
+ area.textContent="सभी रिपोर्ट लोड हो रही हैं…";
+ try{
+  const [ticketsSnap,repliesSnap]=await Promise.all([
+   liveDB.ref("supportTickets").once("value"),
+   liveDB.ref("supportReplies").once("value")
+  ]);
+  const tickets=ticketsSnap.val()||{},replies=repliesSnap.val()||{};
+  area.innerHTML="";
+  let count=0;
+  Object.entries(tickets).forEach(([uid,userTickets])=>{
+   Object.entries(userTickets||{}).forEach(([ticketId,ticket])=>{
+    count++;
+    const card=blackaiSupportNode("div","","contact");card.style.cssText="display:block;margin:10px 0;padding:12px";
+    card.appendChild(blackaiSupportNode("b","यूज़र UID: "+uid));
+    const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
+    card.appendChild(blackaiSupportNode("small","समय: "+blackaiSupportDate(ticket.createdAt)));
+    const previous=replies[uid]&&replies[uid][ticketId];
+    if(previous&&previous.message){const old=blackaiSupportNode("p","पहला जवाब: "+String(previous.message));old.style.whiteSpace="pre-wrap";card.appendChild(old);}
+    const replyBox=document.createElement("textarea");replyBox.rows=2;replyBox.maxLength=2000;replyBox.placeholder="यूज़र को जवाब लिखें…";replyBox.style.cssText="width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";card.appendChild(replyBox);
+    const send=document.createElement("button");send.type="button";send.textContent="जवाब भेजें";send.className="sensor-connect";
+    send.onclick=async()=>{
+     const answer=replyBox.value.trim();if(answer.length<2){alert("जवाब लिखें।");return;}
+     send.disabled=true;
+     try{
+      await liveDB.ref("supportReplies/"+uid+"/"+ticketId).set({message:answer,createdAt:Date.now(),adminUid:user.uid});
+      send.textContent="जवाब भेज दिया";replyBox.value="";
+     }catch(e){alert("जवाब नहीं भेजा जा सका। Firebase Rules जांचें।");send.disabled=false;}
+    };
+    card.appendChild(send);area.appendChild(card);
+   });
+  });
+  if(!count)area.appendChild(blackaiSupportNode("div","अभी कोई यूज़र रिपोर्ट नहीं आई है।","contact"));
+ }catch(e){
+  area.textContent="Admin रिपोर्ट लोड नहीं हुईं। Firebase Rules में Admin को supportTickets और supportReplies पढ़ने की अनुमति दें।";
+ }
+}
+
+</script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-database-compat.js"></script>
 <script>
@@ -413,6 +526,7 @@ auth.onAuthStateChanged(async user=>{
  if(user){
   loadTrustedContacts(user.uid);
   loadSOSHistory(user.uid);
+  if(typeof loadBLACKAISupport==="function") loadBLACKAISupport();
   checkBLACKAIBackupReminder(false);
   const old=document.getElementById("logoutBtn");
   if(!old){
@@ -433,6 +547,8 @@ auth.onAuthStateChanged(async user=>{
  }else{
   contacts=[];
   sosHistory=[];
+  const supportMine=document.getElementById("mySupportTickets");if(supportMine)supportMine.textContent="Login करने पर आपकी रिपोर्ट दिखाई देंगी।";
+  const supportAdmin=document.getElementById("supportAdminPanel");if(supportAdmin)supportAdmin.style.display="none";
   if(typeof blackaiChats!=="undefined")blackaiChats=[];
   if(typeof blackaiCurrentChatId!=="undefined")blackaiCurrentChatId=null;
   const aiBox=document.getElementById("aiMessages");if(aiBox)aiBox.textContent="Login करने पर आपकी निजी चैट दिखाई देगी।";
