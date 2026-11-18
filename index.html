@@ -167,7 +167,7 @@ input{
  <p id="aiChatHint">Gemini से हिंदी या अंग्रेज़ी में सवाल पूछें। जवाब AI द्वारा तैयार किए जाते हैं।</p>
  <div id="aiMessages" aria-live="polite"><div class="ai-message ai-bot">नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?</div></div>
  <textarea id="aiInput" rows="2" placeholder="अपना सवाल लिखें..." aria-label="अपना सवाल लिखें"></textarea>
- <button id="aiSend" type="button">भेजें</button>
+ <button id="aiSend" type="button" onclick="sendBLACKAIMessage()">भेजें</button>
  <div id="aiStatus" role="status" aria-live="polite"></div>
 </section>
 
@@ -507,72 +507,75 @@ function profile(){
 </script>
 </div>
 
+<script>
+window.sendBLACKAIMessage = function () {
+  const status = document.getElementById("aiStatus");
+  if (status) status.textContent = "AI SDK लोड नहीं हुआ। पेज Refresh करें; फिर भी समस्या हो तो मुझे बताएं।";
+};
+</script>
 <script type="module">
 import { getApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-ai.js";
 
-const aiMessages = document.getElementById("aiMessages");
-const aiInput = document.getElementById("aiInput");
-const aiSend = document.getElementById("aiSend");
-const aiStatus = document.getElementById("aiStatus");
-let aiChatSession = null;
-let aiReady = false;
+const box = document.getElementById("aiMessages");
+const input = document.getElementById("aiInput");
+const button = document.getElementById("aiSend");
+const status = document.getElementById("aiStatus");
+let model = null;
+let busy = false;
 
-function addAIMessage(message, kind) {
-  const item = document.createElement("div");
-  item.className = "ai-message " + (kind === "user" ? "ai-user" : "ai-bot");
-  item.textContent = message;
-  aiMessages.appendChild(item);
-  aiMessages.scrollTop = aiMessages.scrollHeight;
+function addMessage(value, role) {
+  const node = document.createElement("div");
+  node.className = "ai-message " + (role === "user" ? "ai-user" : "ai-bot");
+  node.textContent = value;
+  box.appendChild(node);
+  box.scrollTop = box.scrollHeight;
 }
 
 try {
   const app = getApp();
   const ai = getAI(app, { backend: new GoogleAIBackend() });
-  const model = getGenerativeModel(ai, {
-    model: "gemini-4-hydrogen",
-    systemInstruction: "You are BLACKAI Assistant. Be helpful, accurate, respectful, and respond in the language used by the user. If unsure, say so."
-  });
-  aiChatSession = model.startChat();
-  aiReady = true;
-  aiStatus.textContent = "AI तैयार है। अपना सवाल लिखें।";
-} catch (error) {
-  console.error("BLACKAI AI initialization error:", error);
-  aiStatus.textContent = "AI शुरू नहीं हो पाया। पेज रीफ्रेश करें; समस्या बनी रहे तो Firebase App Check सेटिंग जाँचनी होगी।";
+  model = getGenerativeModel(ai, { model: "gemini-4-hydrogen" });
+  status.textContent = "AI तैयार है। सवाल लिखकर भेजें।";
+} catch (err) {
+  console.error("BLACKAI initialization:", err);
+  status.textContent = "AI शुरू नहीं हुआ: " + (err?.message || "SDK initialization error");
 }
 
-async function sendAIMessage() {
-  const prompt = aiInput.value.trim();
-  if (!prompt || !aiReady || !aiChatSession) return;
-  addAIMessage(prompt, "user");
-  aiInput.value = "";
-  aiSend.disabled = true;
-  aiStatus.textContent = "Gemini जवाब तैयार कर रहा है...";
-  try {
-    const result = await aiChatSession.sendMessage(prompt);
-    const answer = result.response.text();
-    addAIMessage(answer || "इस बार जवाब नहीं मिला। कृपया दोबारा कोशिश करें।", "bot");
-    aiStatus.textContent = "जवाब मिल गया।";
-  } catch (error) {
-    console.error("BLACKAI AI request error:", error);
-    const message = String(error?.message || "");
-    if (/app.?check|attestation/i.test(message)) {
-      aiStatus.textContent = "App Check की जाँच बाकी है। Firebase में Web App के लिए App Check provider सेट करना होगा।";
-    } else if (/quota|resource.?exhausted|429/i.test(message)) {
-      aiStatus.textContent = "अभी Gemini की free request limit पूरी हो सकती है। कुछ समय बाद फिर कोशिश करें।";
-    } else {
-      aiStatus.textContent = "जवाब नहीं आया। इंटरनेट और Firebase AI Logic सेटअप जाँचें, फिर दोबारा कोशिश करें।";
-    }
-  } finally {
-    aiSend.disabled = false;
-    aiInput.focus();
+window.sendBLACKAIMessage = async function () {
+  const prompt = input.value.trim();
+  if (!prompt || busy) {
+    if (!prompt) status.textContent = "पहले अपना सवाल लिखें।";
+    return;
   }
-}
-aiSend.addEventListener("click", sendAIMessage);
-aiInput.addEventListener("keydown", event => {
+  if (!model) {
+    status.textContent = "AI SDK तैयार नहीं है। पेज Refresh करें; अगर फिर भी न चले तो यह संदेश बताएं।";
+    return;
+  }
+  busy = true;
+  button.disabled = true;
+  addMessage(prompt, "user");
+  input.value = "";
+  status.textContent = "Gemini जवाब तैयार कर रहा है...";
+  try {
+    const result = await model.generateContent(prompt);
+    const answer = result.response.text();
+    addMessage(answer || "इस बार जवाब नहीं मिला। फिर कोशिश करें।", "bot");
+    status.textContent = "जवाब मिल गया।";
+  } catch (err) {
+    console.error("BLACKAI request:", err);
+    const detail = String(err?.message || "Request failed");
+    status.textContent = "Error: " + detail.slice(0, 220);
+  } finally {
+    busy = false;
+    button.disabled = false;
+  }
+};
+button.addEventListener("click", window.sendBLACKAIMessage);
+input.addEventListener("keydown", event => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
-    sendAIMessage();
+    window.sendBLACKAIMessage();
   }
 });
 </script>
