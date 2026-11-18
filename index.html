@@ -405,16 +405,32 @@ async function shareLocation(){
 }
 
 let sosHistory=[];
-try{
- const savedSOS=JSON.parse(localStorage.getItem("blackai_sos_history")||"[]");
- if(Array.isArray(savedSOS)) sosHistory=savedSOS.slice(0,10);
-}catch(e){sosHistory=[];}
+function loadSOSHistory(){
+ let localItems=[],sessionItems=[];
+ try{
+  const v=JSON.parse(localStorage.getItem("blackai_sos_history")||"[]");
+  if(Array.isArray(v))localItems=v;
+ }catch(e){}
+ try{
+  const v=JSON.parse(sessionStorage.getItem("blackai_sos_history")||"[]");
+  if(Array.isArray(v))sessionItems=v;
+ }catch(e){}
+ sosHistory=(localItems.length>=sessionItems.length?localItems:sessionItems).slice(0,10);
+}
+loadSOSHistory();
 function saveSOSHistory(status){
  const entry={status,time:new Date().toLocaleString("hi-IN")};
  sosHistory.unshift(entry);
  sosHistory=sosHistory.slice(0,10);
- try{localStorage.setItem("blackai_sos_history",JSON.stringify(sosHistory));}catch(e){}
+ const data=JSON.stringify(sosHistory);
+ let saved=false;
+ try{localStorage.setItem("blackai_sos_history",data);saved=localStorage.getItem("blackai_sos_history")===data;}catch(e){}
+ try{sessionStorage.setItem("blackai_sos_history",data);saved=saved||sessionStorage.getItem("blackai_sos_history")===data;}catch(e){}
  renderSOSHistory();
+ if(!saved){
+  const area=document.getElementById("sosHistory");
+  if(area){const warning=document.createElement("div");warning.className="contact";warning.textContent="इस ब्राउज़र में History सेव नहीं हो पाई। Browser storage permission जांचें।";area.prepend(warning);}
+ }
 }
 function renderSOSHistory(){
  const area=document.getElementById("sosHistory");
