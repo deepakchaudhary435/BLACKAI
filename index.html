@@ -1538,7 +1538,7 @@ async function loadBLACKAIAdminTickets(){
      const answer=replyBox.value.trim();if(answer.length<2){alert("जवाब लिखें।");return;}
      send.disabled=true;
      try{
-      await liveDB.ref("supportReplies/"+uid+"/"+ticketId).set({message:answer,createdAt:Date.now(),adminUid:user.uid});
+      await liveDB.ref("supportReplies/"+uid+"/"+ticketId).update({message:answer,createdAt:Date.now(),adminUid:user.uid});
       send.textContent="जवाब भेज दिया";replyBox.value="";
      }catch(e){alert("जवाब नहीं भेजा जा सका। Firebase Rules जांचें।");send.disabled=false;}
     };
