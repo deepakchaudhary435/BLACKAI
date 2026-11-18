@@ -396,18 +396,45 @@ function addContact(){
  document.getElementById("contactPhone").value="";
 }
 function renderContacts(){
- document.getElementById("contacts").innerHTML="";
+ const area=document.getElementById("contacts");
+ if(!area)return;
+ area.innerHTML="";
+ if(!contacts.length){
+  const empty=document.createElement("div");
+  empty.className="contact";
+  empty.textContent="अभी कोई Trusted Contact नहीं जोड़ा गया है।";
+  area.appendChild(empty);
+  return;
+ }
  contacts.forEach((c,i)=>{
   const div=document.createElement("div");
   div.className="contact";
+  div.style.alignItems="center";
+  div.style.gap="10px";
   const info=document.createElement("span");
-  info.textContent=c.name+" - Emergency contact";
+  info.textContent=c.name+" - "+c.phone;
+  info.style.flex="1";
+  const actions=document.createElement("div");
+  actions.style.cssText="display:flex;align-items:center;gap:12px";
   const call=document.createElement("a");
   call.href="tel:"+c.phone.replace(/\s/g,"");
   call.textContent="Call";
   call.style.color="#ed354d";
-  div.append(info,call);
-  document.getElementById("contacts").appendChild(div);
+  const remove=document.createElement("button");
+  remove.type="button";
+  remove.textContent="हटाएँ";
+  remove.style.cssText="background:#303744;color:#fff;border:1px solid #596273;border-radius:8px;padding:8px 10px";
+  remove.onclick=function(){
+   if(!confirm("क्या "+c.name+" को Trusted Contacts से हटाना चाहते हैं?"))return;
+   const nextContacts=contacts.filter((item,index)=>index!==i);
+   try{localStorage.setItem("blackai_contacts",JSON.stringify(nextContacts));}
+   catch(e){alert("Contact हटाया नहीं जा सका। Browser storage जांचें।");return;}
+   contacts=nextContacts;
+   renderContacts();
+  };
+  actions.append(call,remove);
+  div.append(info,actions);
+  area.appendChild(div);
  });
 }
 renderContacts();
