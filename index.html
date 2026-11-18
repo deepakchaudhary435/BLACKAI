@@ -531,6 +531,9 @@ let blackaiInitPromise = null;
 let blackaiBusy = false;
 let blackaiVoiceRecognition = null;
 let blackaiSpeakReplies = false;
+let blackaiVoiceStreamBuffer = "";
+let blackaiVoiceStreamSpoken = 0;
+let blackaiVoiceStreamHandled = false;
 let blackaiChats = [];
 let blackaiCurrentChatId = null;
 function blackaiStorageKey(){
@@ -601,7 +604,7 @@ function blackaiAddMessage(value, role, save=true) {
  box.appendChild(node);
  box.scrollTop=box.scrollHeight;
  if(save)blackaiStoreMessage(value,role);
- if(save && role==="bot" && blackaiSpeakReplies) window.speakBLACKAIReply(value);
+ if(save && role==="bot" && blackaiSpeakReplies && !blackaiVoiceStreamHandled) window.speakBLACKAIReply(value);
 }
 window.newBLACKAIChat=function(){
  const id=String(Date.now())+"_"+Math.random().toString(36).slice(2,7);
@@ -701,6 +704,21 @@ window.toggleBLACKAISpeech=function(){
  button.textContent=blackaiSpeakReplies?"🔊 आवाज़ में जवाब: चालू":"🔊 आवाज़ में जवाब: बंद";
  document.getElementById("aiStatus").textContent=blackaiSpeakReplies?"अब AI जवाब बोलकर सुनाएगा।":"आवाज़ में जवाब बंद है।";
  if(!blackaiSpeakReplies && "speechSynthesis" in window)speechSynthesis.cancel();
+};
+window.queueBLACKAIStreamSpeech=function(fullText,flush=false){
+ if(!blackaiSpeakReplies || !("speechSynthesis" in window))return;
+ const text=String(fullText||"");
+ if(text.length<blackaiVoiceStreamSpoken)return;
+ const fresh=text.slice(blackaiVoiceStreamSpoken);
+ const match=flush?fresh.match(/[\\s\\S]+/):fresh.match(/[\\s\\S]*?[.!?।\\n]+/);
+ if(!match||!match[0].trim())return;
+ const chunk=match[0].trim();
+ blackaiVoiceStreamSpoken+=match[0].length;
+ const utterance=new SpeechSynthesisUtterance(chunk);
+ utterance.lang=/[\\u0900-\\u097F]/.test(chunk)?"hi-IN":"en-IN";
+ utterance.rate=1.05;
+ speechSynthesis.speak(utterance);
+ blackaiVoiceStreamHandled=true;
 };
 window.speakBLACKAIReply=function(text){
  if(!("speechSynthesis" in window)){document.getElementById("aiStatus").textContent="इस ब्राउज़र में आवाज़ सुनाने की सुविधा उपलब्ध नहीं है।";return;}
