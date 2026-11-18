@@ -702,8 +702,27 @@ window.toggleBLACKAISpeech=function(){
  blackaiSpeakReplies=!blackaiSpeakReplies;
  const button=document.getElementById("aiSpeakToggle");
  button.textContent=blackaiSpeakReplies?"🔊 आवाज़ में जवाब: चालू":"🔊 आवाज़ में जवाब: बंद";
- document.getElementById("aiStatus").textContent=blackaiSpeakReplies?"अब AI जवाब बोलकर सुनाएगा।":"आवाज़ में जवाब बंद है।";
- if(!blackaiSpeakReplies && "speechSynthesis" in window)speechSynthesis.cancel();
+ if(!blackaiSpeakReplies){
+  if("speechSynthesis" in window)speechSynthesis.cancel();
+  document.getElementById("aiStatus").textContent="आवाज़ में जवाब बंद है।";
+  return;
+ }
+ if(!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance==="undefined"){
+  document.getElementById("aiStatus").textContent="इस ब्राउज़र में आवाज़ की सुविधा उपलब्ध नहीं है।";
+  return;
+ }
+ try{
+  speechSynthesis.cancel();
+  const test=new SpeechSynthesisUtterance("आवाज़ चालू है।");
+  test.lang="hi-IN";
+  test.rate=1;
+  test.onstart=()=>{document.getElementById("aiStatus").textContent="आवाज़ चालू है। अब AI जवाब बोलकर सुनाएगा।";};
+  test.onerror=()=>{document.getElementById("aiStatus").textContent="फोन में हिंदी Text-to-Speech आवाज़ उपलब्ध नहीं है। Android की Text-to-Speech सेटिंग जांचें।";};
+  speechSynthesis.resume();
+  speechSynthesis.speak(test);
+ }catch(e){
+  document.getElementById("aiStatus").textContent="आवाज़ शुरू नहीं हो पाई। Android Text-to-Speech सेटिंग जांचें।";
+ }
 };
 window.queueBLACKAIStreamSpeech=function(fullText,flush=false){
  if(!blackaiSpeakReplies || !("speechSynthesis" in window))return;
@@ -794,7 +813,7 @@ window.sendBLACKAIMessage=async function(){
    if(!liveReply)return;
    liveReply.textContent=text||"BLACKAI जवाब लिख रहा है…";
    messageBox.scrollTop=messageBox.scrollHeight;
-   if(text)window.queueBLACKAIStreamSpeech(text,false);
+   // Speech starts after the complete reply to avoid Android speech queue failures.
   };
   let answer;
   try{
@@ -805,7 +824,7 @@ window.sendBLACKAIMessage=async function(){
    answer=await blackaiTryModel(blackaiBackupModel,prompt,"Backup AI",showStream);
    status.textContent="Backup AI से जवाब मिल गया।";
   }
-  if(blackaiSpeakReplies && answer)window.queueBLACKAIStreamSpeech(answer,true);
+  blackaiVoiceStreamHandled=false;
   if(liveReply){liveReply.remove();liveReply=null;}
   blackaiAddMessage(answer||"इस बार जवाब नहीं मिला।","bot");
   if(!status.textContent.includes("Backup AI"))status.textContent="जवाब मिल गया।";
