@@ -1492,6 +1492,25 @@ async function loadBLACKAIAdminTickets(){
   const tickets=ticketsSnap.val()||{},replies=repliesSnap.val()||{};
   area.innerHTML="";
   let count=0;
+  const totals={all:0,pending:0,inProgress:0,solved:0};
+  Object.entries(tickets).forEach(([uid,userTickets])=>{
+   Object.entries(userTickets||{}).forEach(([ticketId])=>{
+    totals.all++;
+    const reply=replies[uid]&&replies[uid][ticketId];
+    const status=reply&&reply.status?reply.status:"Pending";
+    if(status==="Solved")totals.solved++;
+    else if(status==="In Progress")totals.inProgress++;
+    else totals.pending++;
+   });
+  });
+  const summary=blackaiSupportNode("div","","contact");
+  summary.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0;padding:12px";
+  [["कुल रिपोर्ट",totals.all],["Pending",totals.pending],["In Progress",totals.inProgress],["Solved",totals.solved]].forEach(([label,value])=>{
+   const item=blackaiSupportNode("div",label+": "+value);
+   item.style.cssText="padding:10px;background:#171b23;border-radius:8px;font-weight:bold;text-align:center";
+   summary.appendChild(item);
+  });
+  area.appendChild(summary);
   Object.entries(tickets).forEach(([uid,userTickets])=>{
    Object.entries(userTickets||{}).forEach(([ticketId,ticket])=>{
     count++;
