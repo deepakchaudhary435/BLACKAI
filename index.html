@@ -470,6 +470,7 @@ function addContact(){
  document.getElementById("contactPhone").value="";
 }
 function renderContacts(){
+ fillLiveContacts();
  const area=document.getElementById("contacts");
  if(!area)return;
  area.innerHTML="";
