@@ -772,6 +772,8 @@ window.sendBLACKAIMessage=async function(){
  if(!prompt){status.textContent="पहले अपना सवाल लिखें।";return;}
  if(blackaiBusy)return;
  blackaiBusy=true;button.disabled=true;
+ blackaiVoiceStreamSpoken=0;
+ blackaiVoiceStreamHandled=false;
  blackaiAddMessage(prompt,"user");input.value="";
  let liveReply=null;
  try{
@@ -786,6 +788,7 @@ window.sendBLACKAIMessage=async function(){
    if(!liveReply)return;
    liveReply.textContent=text||"BLACKAI जवाब लिख रहा है…";
    messageBox.scrollTop=messageBox.scrollHeight;
+   if(text)window.queueBLACKAIStreamSpeech(text,false);
   };
   let answer;
   try{
@@ -796,6 +799,7 @@ window.sendBLACKAIMessage=async function(){
    answer=await blackaiTryModel(blackaiBackupModel,prompt,"Backup AI",showStream);
    status.textContent="Backup AI से जवाब मिल गया।";
   }
+  if(blackaiSpeakReplies && answer)window.queueBLACKAIStreamSpeech(answer,true);
   if(liveReply){liveReply.remove();liveReply=null;}
   blackaiAddMessage(answer||"इस बार जवाब नहीं मिला।","bot");
   if(!status.textContent.includes("Backup AI"))status.textContent="जवाब मिल गया।";
