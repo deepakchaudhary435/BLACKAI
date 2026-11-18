@@ -418,8 +418,23 @@ auth.onAuthStateChanged(user=>{
 let contacts = [];
 function trustedContactsKey(uid){return "blackai_contacts_"+uid;}
 function loadTrustedContacts(uid){
- try{const saved=JSON.parse(localStorage.getItem(trustedContactsKey(uid))||"[]");contacts=Array.isArray(saved)?saved:[];}
- catch(e){contacts=[];}
+ try{
+  const key=trustedContactsKey(uid);
+  const ownData=localStorage.getItem(key);
+  if(ownData!==null){
+   const saved=JSON.parse(ownData);
+   contacts=Array.isArray(saved)?saved:[];
+  }else{
+   // पुराने version के contacts को इस डिवाइस के पहले लॉगिन किए गए अकाउंट में migrate करें।
+   const legacy=localStorage.getItem("blackai_contacts");
+   if(legacy!==null){
+    const saved=JSON.parse(legacy);
+    contacts=Array.isArray(saved)?saved:[];
+    localStorage.setItem(key,JSON.stringify(contacts));
+    localStorage.removeItem("blackai_contacts");
+   }else contacts=[];
+  }
+ }catch(e){contacts=[];}
  renderContacts();
 }
 function saveTrustedContacts(nextContacts){
