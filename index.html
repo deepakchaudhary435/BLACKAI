@@ -404,6 +404,7 @@ auth.onAuthStateChanged(user=>{
  app.style.display=user?"block":"none";
  if(user){
   loadTrustedContacts(user.uid);
+  loadSOSHistory(user.uid);
   checkBLACKAIBackupReminder(false);
   const old=document.getElementById("logoutBtn");
   if(!old){
@@ -423,6 +424,8 @@ auth.onAuthStateChanged(user=>{
   renderHomeProfile();
  }else{
   contacts=[];
+  sosHistory=[];
+  renderSOSHistory();
   renderContacts();
   const old=document.getElementById("logoutBtn");if(old)old.remove();
  }
@@ -577,7 +580,7 @@ function restoreBLACKAIBackup(input){
    localStorage.setItem(trustedContactsKey(user.uid),JSON.stringify(d.contacts));
    localStorage.setItem("blackai_profile_"+user.uid,JSON.stringify(d.profile));
    localStorage.setItem("blackai_ai_chats_"+user.uid,JSON.stringify(d.chats.slice(0,30)));
-   localStorage.setItem("blackai_sos_history",JSON.stringify(d.sosHistory.slice(0,10)));
+   localStorage.setItem(sosHistoryKey(user.uid),JSON.stringify(d.sosHistory.slice(0,10)));
    contacts=d.contacts;renderContacts();
    if(typeof blackaiRefreshHistory==="function")blackaiRefreshHistory();
    if(typeof renderSOSHistory==="function"){sosHistory=d.sosHistory.slice(0,10);renderSOSHistory();}
@@ -764,27 +767,27 @@ async function shareLocation(){
 }
 
 let sosHistory=[];
-function loadSOSHistory(){
- let localItems=[],sessionItems=[];
+function sosHistoryKey(uid){return "blackai_sos_history_"+uid;}
+function loadSOSHistory(uid){
+ if(!uid){sosHistory=[];renderSOSHistory();return;}
+ let localItems=[],sessionItems=[],key=sosHistoryKey(uid);
  try{
-  const v=JSON.parse(localStorage.getItem("blackai_sos_history")||"[]");
-  if(Array.isArray(v))localItems=v;
+  let raw=localStorage.getItem(key);
+  if(raw===null){const legacy=localStorage.getItem("blackai_sos_history");if(legacy!==null){raw=legacy;localStorage.setItem(key,legacy);localStorage.removeItem("blackai_sos_history");}}
+  const v=JSON.parse(raw||"[]");if(Array.isArray(v))localItems=v;
  }catch(e){}
- try{
-  const v=JSON.parse(sessionStorage.getItem("blackai_sos_history")||"[]");
-  if(Array.isArray(v))sessionItems=v;
- }catch(e){}
+ try{const v=JSON.parse(sessionStorage.getItem(key)||"[]");if(Array.isArray(v))sessionItems=v;}catch(e){}
  sosHistory=(localItems.length>=sessionItems.length?localItems:sessionItems).slice(0,10);
+ renderSOSHistory();
 }
-loadSOSHistory();
 function saveSOSHistory(status){
  const entry={status,time:new Date().toLocaleString("hi-IN")};
  sosHistory.unshift(entry);
  sosHistory=sosHistory.slice(0,10);
  const data=JSON.stringify(sosHistory);
  let saved=false;
- try{localStorage.setItem("blackai_sos_history",data);saved=localStorage.getItem("blackai_sos_history")===data;}catch(e){}
- try{sessionStorage.setItem("blackai_sos_history",data);saved=saved||sessionStorage.getItem("blackai_sos_history")===data;}catch(e){}
+ const user=auth.currentUser;if(!user){sosHistory.shift();return;}const key=sosHistoryKey(user.uid);try{localStorage.setItem(key,data);saved=localStorage.getItem(key)===data;}catch(e){}
+ try{sessionStorage.setItem(key,data);saved=saved||sessionStorage.getItem(key)===data;}catch(e){}
  renderSOSHistory();
  if(!saved){
   const area=document.getElementById("sosHistory");
@@ -806,8 +809,8 @@ function renderSOSHistory(){
   if(!sosHistory.length)return;
   if(!confirm("क्या आप पूरी SOS History हटाना चाहते हैं?"))return;
   sosHistory=[];
-  try{localStorage.removeItem("blackai_sos_history");}catch(e){}
-  try{sessionStorage.removeItem("blackai_sos_history");}catch(e){}
+  const user=auth.currentUser;if(user)try{localStorage.removeItem(sosHistoryKey(user.uid));}catch(e){}
+  const user=auth.currentUser;if(user)try{sessionStorage.removeItem(sosHistoryKey(user.uid));}catch(e){}
   renderSOSHistory();
  };
  tools.appendChild(clear);area.appendChild(tools);
@@ -831,8 +834,8 @@ function renderSOSHistory(){
   remove.onclick=function(){
    sosHistory.splice(index,1);
    const data=JSON.stringify(sosHistory);
-   try{localStorage.setItem("blackai_sos_history",data);}catch(e){}
-   try{sessionStorage.setItem("blackai_sos_history",data);}catch(e){}
+   const user=auth.currentUser;if(user)try{localStorage.setItem(sosHistoryKey(user.uid),data);}catch(e){}
+   const user=auth.currentUser;if(user)try{sessionStorage.setItem(sosHistoryKey(user.uid),data);}catch(e){}
    renderSOSHistory();
   };
   card.append(details,remove);area.appendChild(card);
