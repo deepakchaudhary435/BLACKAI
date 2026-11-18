@@ -1445,6 +1445,10 @@ async function loadBLACKAISupport(){
    const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
    card.appendChild(blackaiSupportNode("small","भेजने का समय: "+blackaiSupportDate(ticket.createdAt)));
    const reply=replies[id];
+   const statusText=reply&&reply.status?reply.status:"Pending";
+   const statusLine=blackaiSupportNode("p","स्थिति: "+statusText);
+   statusLine.style.cssText="color:#f0c674;margin-top:8px;font-weight:bold";
+   card.appendChild(statusLine);
    if(reply&&reply.message){
     const r=blackaiSupportNode("p","Admin का जवाब: "+String(reply.message));r.style.cssText="white-space:pre-wrap;color:#8fe0ae;margin-top:10px";card.appendChild(r);
     card.appendChild(blackaiSupportNode("small","जवाब का समय: "+blackaiSupportDate(reply.createdAt)));
@@ -1500,6 +1504,18 @@ async function loadBLACKAIAdminTickets(){
     waShare.style.cssText="display:inline-block;text-decoration:none;margin-top:10px";
     card.appendChild(waShare);
     const previous=replies[uid]&&replies[uid][ticketId];
+    const statusSelect=document.createElement("select");
+    statusSelect.style.cssText="display:block;width:100%;margin-top:12px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";
+    [["Pending","Pending"],["In Progress","In Progress"],["Solved","Solved"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent="स्थिति: "+label;statusSelect.appendChild(option);});
+    statusSelect.value=previous&&previous.status?previous.status:"Pending";
+    statusSelect.onchange=async()=>{
+     statusSelect.disabled=true;
+     try{await liveDB.ref("supportReplies/"+uid+"/"+ticketId+"/status").set(statusSelect.value);
+      statusSelect.style.borderColor="#58c98b";
+     }catch(e){alert("स्थिति सेव नहीं हुई। Firebase Rules जांचें।");statusSelect.value=previous&&previous.status?previous.status:"Pending";}
+     finally{statusSelect.disabled=false;}
+    };
+    card.appendChild(statusSelect);
     if(previous&&previous.message){const old=blackaiSupportNode("p","पहला जवाब: "+String(previous.message));old.style.whiteSpace="pre-wrap";card.appendChild(old);}
     const replyBox=document.createElement("textarea");replyBox.rows=2;replyBox.maxLength=2000;replyBox.placeholder="यूज़र को जवाब लिखें…";replyBox.style.cssText="width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";card.appendChild(replyBox);
     const send=document.createElement("button");send.type="button";send.textContent="जवाब भेजें";send.className="sensor-connect";
