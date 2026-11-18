@@ -74,6 +74,19 @@ input{
 #homeProfile{background:#171b23;border:1px solid #292e3a;border-radius:15px;padding:16px;margin-top:18px;color:#b9c0ce;line-height:1.7}
 #homeProfile strong{color:#fff}
 
+
+#aiChat{background:#121720;border:1px solid #343d4c;border-radius:16px;padding:16px;margin-top:28px}
+#aiChat h2{margin:0 0 8px}
+#aiChatHint{color:#aab2c0;font-size:13px;line-height:1.5}
+#aiMessages{height:260px;overflow-y:auto;background:#0b0b0f;border:1px solid #303440;border-radius:12px;padding:12px;margin:14px 0}
+.ai-message{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;padding:10px 12px;border-radius:12px;margin:8px 0;max-width:95%}
+.ai-user{background:#263247;margin-left:auto;color:#fff}
+.ai-bot{background:#202733;color:#f5f5f7;margin-right:auto}
+#aiInput{margin-top:0;min-height:48px}
+#aiSend{background:#ed354d;color:#fff;border:0;border-radius:10px;padding:13px 18px;font-weight:bold;margin-top:10px;width:100%}
+#aiSend:disabled{opacity:.55}
+#aiStatus{font-size:13px;color:#aab2c0;margin-top:9px;min-height:18px}
+
 </style>
 </head>
 <body>
@@ -147,6 +160,17 @@ input{
 <input id="contactPhone" type="tel" placeholder="Phone number">
 <button class="add" onclick="addContact()">+ Add contact</button>
 
+
+<h2>BLACKAI Assistant</h2>
+<section id="aiChat" aria-label="BLACKAI AI Chat">
+ <h2>🤖 BLACKAI AI Chat</h2>
+ <p id="aiChatHint">Gemini से हिंदी या अंग्रेज़ी में सवाल पूछें। जवाब AI द्वारा तैयार किए जाते हैं।</p>
+ <div id="aiMessages" aria-live="polite"><div class="ai-message ai-bot">नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?</div></div>
+ <textarea id="aiInput" rows="2" placeholder="अपना सवाल लिखें..." aria-label="अपना सवाल लिखें"></textarea>
+ <button id="aiSend" type="button">भेजें</button>
+ <div id="aiStatus" role="status" aria-live="polite"></div>
+</section>
+
 <h2>Recent activity</h2>
 <div class="contact" id="activity">No recent activity</div>
 
@@ -157,8 +181,8 @@ input{
  <button onclick="profile()">●<br>Profile</button>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
 <script>
 const firebaseConfig = {
  apiKey: "AIzaSyDlymowey_AyTDqmv_46CVITCYi1CpBmDc",
@@ -482,6 +506,77 @@ function profile(){
 }
 </script>
 </div>
+
+<script type="module">
+import { getApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-ai.js";
+
+const aiMessages = document.getElementById("aiMessages");
+const aiInput = document.getElementById("aiInput");
+const aiSend = document.getElementById("aiSend");
+const aiStatus = document.getElementById("aiStatus");
+let aiChatSession = null;
+let aiReady = false;
+
+function addAIMessage(message, kind) {
+  const item = document.createElement("div");
+  item.className = "ai-message " + (kind === "user" ? "ai-user" : "ai-bot");
+  item.textContent = message;
+  aiMessages.appendChild(item);
+  aiMessages.scrollTop = aiMessages.scrollHeight;
+}
+
+try {
+  const app = getApp();
+  const ai = getAI(app, { backend: new GoogleAIBackend() });
+  const model = getGenerativeModel(ai, {
+    model: "gemini-4-hydrogen",
+    systemInstruction: "You are BLACKAI Assistant. Be helpful, accurate, respectful, and respond in the language used by the user. If unsure, say so."
+  });
+  aiChatSession = model.startChat();
+  aiReady = true;
+  aiStatus.textContent = "AI तैयार है। अपना सवाल लिखें।";
+} catch (error) {
+  console.error("BLACKAI AI initialization error:", error);
+  aiStatus.textContent = "AI शुरू नहीं हो पाया। पेज रीफ्रेश करें; समस्या बनी रहे तो Firebase App Check सेटिंग जाँचनी होगी।";
+}
+
+async function sendAIMessage() {
+  const prompt = aiInput.value.trim();
+  if (!prompt || !aiReady || !aiChatSession) return;
+  addAIMessage(prompt, "user");
+  aiInput.value = "";
+  aiSend.disabled = true;
+  aiStatus.textContent = "Gemini जवाब तैयार कर रहा है...";
+  try {
+    const result = await aiChatSession.sendMessage(prompt);
+    const answer = result.response.text();
+    addAIMessage(answer || "इस बार जवाब नहीं मिला। कृपया दोबारा कोशिश करें।", "bot");
+    aiStatus.textContent = "जवाब मिल गया।";
+  } catch (error) {
+    console.error("BLACKAI AI request error:", error);
+    const message = String(error?.message || "");
+    if (/app.?check|attestation/i.test(message)) {
+      aiStatus.textContent = "App Check की जाँच बाकी है। Firebase में Web App के लिए App Check provider सेट करना होगा।";
+    } else if (/quota|resource.?exhausted|429/i.test(message)) {
+      aiStatus.textContent = "अभी Gemini की free request limit पूरी हो सकती है। कुछ समय बाद फिर कोशिश करें।";
+    } else {
+      aiStatus.textContent = "जवाब नहीं आया। इंटरनेट और Firebase AI Logic सेटअप जाँचें, फिर दोबारा कोशिश करें।";
+    }
+  } finally {
+    aiSend.disabled = false;
+    aiInput.focus();
+  }
+}
+aiSend.addEventListener("click", sendAIMessage);
+aiInput.addEventListener("keydown", event => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    sendAIMessage();
+  }
+});
+</script>
+
 </body>
   </html>
     
