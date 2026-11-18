@@ -436,17 +436,15 @@ function renderSOSHistory(){
  const area=document.getElementById("sosHistory");
  if(!area)return;
  area.innerHTML="";
- if(!sosHistory.length){
-  const empty=document.createElement("div");
-  empty.className="contact";empty.textContent="अभी कोई SOS गतिविधि नहीं है।";
-  area.appendChild(empty);return;
- }
  const tools=document.createElement("div");
- tools.style.display="flex";tools.style.justifyContent="flex-end";tools.style.margin="8px 0";
+ tools.style.cssText="display:flex;justify-content:flex-end;margin:8px 0";
  const clear=document.createElement("button");
  clear.type="button";clear.textContent="🗑️ पूरी History हटाएँ";
- clear.style.cssText="background:#54202a;color:#fff;border:1px solid #a33;border-radius:9px;padding:9px 12px";
+ clear.style.cssText="display:inline-block;background:#8f1f32;color:#fff;border:1px solid #ed5369;border-radius:10px;padding:11px 14px;font-weight:700;min-height:42px";
+ clear.disabled=!sosHistory.length;
+ clear.style.opacity=sosHistory.length?"1":"0.55";
  clear.onclick=function(){
+  if(!sosHistory.length)return;
   if(!confirm("क्या आप पूरी SOS History हटाना चाहते हैं?"))return;
   sosHistory=[];
   try{localStorage.removeItem("blackai_sos_history");}catch(e){}
@@ -454,20 +452,23 @@ function renderSOSHistory(){
   renderSOSHistory();
  };
  tools.appendChild(clear);area.appendChild(tools);
+ if(!sosHistory.length){
+  const empty=document.createElement("div");
+  empty.className="contact";empty.textContent="अभी कोई SOS गतिविधि नहीं है।";
+  area.appendChild(empty);return;
+ }
  sosHistory.forEach((item,index)=>{
   const card=document.createElement("div");
   card.className="contact";
   card.style.display="flex";card.style.alignItems="center";card.style.justifyContent="space-between";card.style.gap="10px";
   const details=document.createElement("div");
-  const label=document.createElement("strong");
-  label.textContent=item.status;
-  const time=document.createElement("div");
-  time.textContent=item.time;
-  time.style.color="#aab4c5";time.style.fontSize="12px";time.style.marginTop="5px";
+  const label=document.createElement("strong");label.textContent=item.status;
+  const time=document.createElement("div");time.textContent=item.time;
+  time.style.cssText="color:#aab4c5;font-size:12px;margin-top:5px";
   details.append(label,time);
   const remove=document.createElement("button");
   remove.type="button";remove.textContent="हटाएँ";
-  remove.style.cssText="background:#303744;color:#fff;border:1px solid #596273;border-radius:8px;padding:7px 10px";
+  remove.style.cssText="display:inline-block;background:#303744;color:#fff;border:1px solid #596273;border-radius:8px;padding:9px 12px;min-height:38px";
   remove.onclick=function(){
    sosHistory.splice(index,1);
    const data=JSON.stringify(sosHistory);
