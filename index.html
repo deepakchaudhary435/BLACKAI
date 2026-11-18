@@ -537,8 +537,13 @@ async function blackaiInit() {
   try {
    const appSdk=await import("https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js");
    const aiSdk=await import("https://www.gstatic.com/firebasejs/13.3.0/firebase-ai.js");
+   const appCheckSdk=await import("https://www.gstatic.com/firebasejs/13.3.0/firebase-app-check.js");
    const apps=appSdk.getApps();
    const app=apps.length?apps[0]:appSdk.initializeApp(aiFirebaseConfig);
+   appCheckSdk.initializeAppCheck(app,{
+    provider:new appCheckSdk.ReCaptchaEnterpriseProvider("6LcfJSYuAAAAAHfeat63ECkn4gfE5tTUXJITiyn9"),
+    isTokenAutoRefreshEnabled:true
+   });
    const ai=aiSdk.getAI(app,{backend:new aiSdk.GoogleAIBackend()});
    blackaiModel=aiSdk.getGenerativeModel(ai,{model:"gemini-4-hydrogen"});
    status.textContent="AI तैयार है। सवाल लिखकर भेजें।";
