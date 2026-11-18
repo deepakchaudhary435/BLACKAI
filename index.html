@@ -86,6 +86,9 @@ input{
 #aiSend{background:#ed354d;color:#fff;border:0;border-radius:10px;padding:13px 18px;font-weight:bold;margin-top:10px;width:100%}
 #aiSend:disabled{opacity:.55}
 #aiStatus{font-size:13px;color:#aab2c0;margin-top:9px;min-height:18px}
+.ai-tools{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+.ai-tools select{flex:1;min-width:150px;margin:0;background:#171b23;color:#fff;border:1px solid #444;border-radius:9px;padding:10px}
+.ai-tools button{background:#252b36;color:#fff;border:1px solid #414958;border-radius:9px;padding:10px 12px}
 
 </style>
 </head>
@@ -165,6 +168,7 @@ input{
 <section id="aiChat" aria-label="BLACKAI AI Chat">
  <h2>🤖 BLACKAI AI Chat</h2>
  <p id="aiChatHint">Gemini से हिंदी या अंग्रेज़ी में सवाल पूछें। जवाब AI द्वारा तैयार किए जाते हैं।</p>
+ <div class="ai-tools"><select id="aiHistory" aria-label="पुरानी चैट चुनें" onchange="window.openBLACKAIChat(this.value)"><option value="">चैट हिस्ट्री</option></select><button type="button" onclick="window.newBLACKAIChat()">+ नई चैट</button></div>
  <div id="aiMessages" aria-live="polite"><div class="ai-message ai-bot">नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?</div></div>
  <textarea id="aiInput" rows="2" placeholder="अपना सवाल लिखें..." aria-label="अपना सवाल लिखें"></textarea>
  <button id="aiSend" type="button" onclick="window.sendBLACKAIMessage()">भेजें</button>
@@ -250,6 +254,7 @@ async function resetPassword(){
 }
 function logoutBLACKAI(){auth.signOut();}
 auth.onAuthStateChanged(user=>{
+ if(user && window.blackaiLoadHistory) window.blackaiLoadHistory();
  const gate=document.getElementById("authGate");
  const app=document.getElementById("appContent");
  gate.style.display=user?"none":"block";
@@ -520,13 +525,88 @@ const aiFirebaseConfig = {
 let blackaiModel = null;
 let blackaiInitPromise = null;
 let blackaiBusy = false;
-function blackaiAddMessage(value, role) {
+let blackaiChats = [];
+let blackaiCurrentChatId = null;
+function blackaiStorageKey(){
+ const user=auth.currentUser;
+ return user ? "blackai_ai_chats_"+user.uid : null;
+}
+function blackaiSaveChats(){
+ const key=blackaiStorageKey();
+ if(!key)return;
+ try{localStorage.setItem(key,JSON.stringify(blackaiChats.slice(0,30)));}catch(e){
+  document.getElementById("aiStatus").textContent="चैट सेव नहीं हो पाई। फोन की storage जांचें।";
+ }
+}
+function blackaiCurrentChat(){
+ return blackaiChats.find(chat=>chat.id===blackaiCurrentChatId);
+}
+function blackaiRefreshHistory(){
+ const select=document.getElementById("aiHistory");
+ if(!select)return;
+ select.innerHTML="";
+ const first=document.createElement("option");first.value="";first.textContent="चैट हिस्ट्री";select.appendChild(first);
+ blackaiChats.slice().sort((a,b)=>b.updated-a.updated).forEach(chat=>{
+  const option=document.createElement("option");option.value=chat.id;option.textContent=chat.title||"नई चैट";select.appendChild(option);
+ });
+ select.value=blackaiCurrentChatId||"";
+}
+function blackaiRenderChat(){
+ const box=document.getElementById("aiMessages");if(!box)return;
+ box.innerHTML="";
+ const chat=blackaiCurrentChat();
+ const messages=chat&&Array.isArray(chat.messages)?chat.messages:[];
+ if(!messages.length){
+  const node=document.createElement("div");node.className="ai-message ai-bot";
+  node.textContent="नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?";box.appendChild(node);
+ }else{
+  messages.forEach(message=>blackaiAddMessage(message.text,message.role,false));
+ }
+ box.scrollTop=box.scrollHeight;
+ blackaiRefreshHistory();
+}
+function blackaiStoreMessage(value,role){
+ const chat=blackaiCurrentChat();if(!chat)return;
+ chat.messages.push({text:value,role});
+ if(role==="user"&&chat.messages.filter(m=>m.role==="user").length===1){
+  chat.title=value.slice(0,36)+(value.length>36?"…":"");
+ }
+ chat.updated=Date.now();blackaiSaveChats();blackaiRefreshHistory();
+}
+function blackaiAddMessage(value, role, save=true) {
  const box=document.getElementById("aiMessages");
  const node=document.createElement("div");
  node.className="ai-message "+(role==="user"?"ai-user":"ai-bot");
  node.textContent=value;
  box.appendChild(node);
  box.scrollTop=box.scrollHeight;
+ if(save)blackaiStoreMessage(value,role);
+}
+window.newBLACKAIChat=function(){
+ const id=String(Date.now())+"_"+Math.random().toString(36).slice(2,7);
+ blackaiChats.unshift({id,title:"नई चैट",updated:Date.now(),messages:[]});
+ blackaiCurrentChatId=id;blackaiSaveChats();blackaiRenderChat();
+ document.getElementById("aiInput").value="";
+ document.getElementById("aiStatus").textContent="नई चैट शुरू हो गई।";
+};
+window.openBLACKAIChat=function(id){
+ if(!id)return;
+ if(!blackaiChats.some(chat=>chat.id===id))return;
+ blackaiCurrentChatId=id;blackaiRenderChat();
+ document.getElementById("aiStatus").textContent="पुरानी चैट खुल गई।";
+};
+window.blackaiLoadHistory=function(){
+ const key=blackaiStorageKey();if(!key)return;
+ try{
+  const saved=JSON.parse(localStorage.getItem(key)||"[]");
+  blackaiChats=Array.isArray(saved)?saved.filter(chat=>chat&&chat.id&&Array.isArray(chat.messages)): [];
+ }catch(e){blackaiChats=[];}
+ if(!blackaiChats.length){
+  blackaiCurrentChatId=null;window.newBLACKAIChat();
+ }else{
+  blackaiCurrentChatId=blackaiChats.slice().sort((a,b)=>b.updated-a.updated)[0].id;
+  blackaiRenderChat();
+ }
 }
 async function blackaiInit() {
  if(blackaiModel) return blackaiModel;
