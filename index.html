@@ -1631,7 +1631,20 @@ async function loadBLACKAIAdminTickets(){
       send.textContent="जवाब भेज दिया";replyBox.value="";
      }catch(e){alert("जवाब नहीं भेजा जा सका। Firebase Rules जांचें।");send.disabled=false;}
     };
-    card.appendChild(send);area.appendChild(card);
+    card.appendChild(send);
+    const removeTicket=document.createElement("button");removeTicket.type="button";removeTicket.textContent="रिपोर्ट डिलीट करें";removeTicket.className="sensor-connect";removeTicket.style.cssText="display:block;margin-top:10px;background:#7a2424";
+    removeTicket.onclick=async()=>{
+     if(!auth.currentUser||auth.currentUser.uid!==BLACKAI_SUPPORT_ADMIN_UID){alert("Admin अनुमति आवश्यक है।");return;}
+     if(!confirm("क्या इस रिपोर्ट और उससे जुड़ा जवाब हमेशा के लिए डिलीट करना है?"))return;
+     removeTicket.disabled=true;
+     try{
+      await liveDB.ref("supportTickets/"+uid+"/"+ticketId).remove();
+      await liveDB.ref("supportReplies/"+uid+"/"+ticketId).remove();
+      card.remove();
+      loadBLACKAIAdminTickets();
+     }catch(e){removeTicket.disabled=false;alert("डिलीट नहीं हुआ। Firebase Rules में Admin delete अनुमति जोड़नी होगी।");}
+    };
+    card.appendChild(removeTicket);area.appendChild(card);
    });
   const adminSearch=document.getElementById("blackaiAdminSupportSearch");
   if(adminSearch)adminSearch.oninput=()=>filterBLACKAISupportCards("blackaiAdminSupportSearch","allSupportTickets");
