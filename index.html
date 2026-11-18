@@ -257,6 +257,16 @@ input{
  <p id="liveLocationStatus" class="sensor-foot" aria-live="polite">अभी Live Location बंद है।</p>
 </section>
 
+<section class="sensor-dashboard" id="emergencyAlertCard">
+ <h2 style="margin:0 0 8px">🚨 Emergency Alert</h2>
+ <p class="sensor-intro">संदेश चुनिंदा Trusted Contacts को SMS ऐप में तैयार होगा। भेजने से पहले Messages ऐप में खुद जाँचकर Send दबाएँ।</p>
+ <div id="emergencyRecipients" class="sensor-grid"></div>
+ <textarea id="emergencyAlertMessage" rows="3" style="width:100%;margin-top:12px;padding:12px;border-radius:10px;background:#171b23;color:white;border:1px solid #444" maxlength="300" placeholder="अपनी मदद की जरूरत लिखें">मुझे तुरंत मदद चाहिए। कृपया मुझसे संपर्क करें।</textarea>
+ <label style="display:flex;gap:9px;align-items:center;margin-top:12px;font-size:13px"><input id="alertIncludeLocation" type="checkbox" checked> वर्तमान लोकेशन लिंक जोड़ें</label>
+ <button class="sensor-connect" type="button" onclick="prepareEmergencyAlert()">📩 SMS Alert तैयार करें</button>
+ <p id="emergencyAlertStatus" class="sensor-foot" aria-live="polite">अभी कोई अलर्ट नहीं भेजा गया है।</p>
+</section>
+
 <h2>Trusted circle</h2>
 <div id="contacts"></div>
 <input id="contactName" placeholder="Contact name">
@@ -488,6 +498,7 @@ function addContact(){
 }
 function renderContacts(){
  fillLiveContacts();
+ renderEmergencyRecipients();
  const area=document.getElementById("contacts");
  if(!area)return;
  area.innerHTML="";
@@ -531,6 +542,37 @@ function renderContacts(){
 }
 renderContacts();
 fillLiveContacts();
+function renderEmergencyRecipients(){
+ const area=document.getElementById("emergencyRecipients");
+ if(!area)return;
+ area.innerHTML="";
+ if(!contacts.length){
+  const p=document.createElement("p");p.className="sensor-foot";p.textContent="पहले Trusted Circle में संपर्क जोड़ें।";area.appendChild(p);return;
+ }
+ contacts.forEach((c,i)=>{
+  const label=document.createElement("label");
+  label.style.cssText="display:flex;gap:8px;align-items:center;background:#202a38;border:1px solid #354357;border-radius:10px;padding:10px;font-size:12px";
+  const check=document.createElement("input");check.type="checkbox";check.value=String(i);
+  const name=document.createElement("span");name.textContent=c.name+" ("+c.phone+")";
+  label.append(check,name);area.appendChild(label);
+ });
+}
+async function prepareEmergencyAlert(){
+ const status=document.getElementById("emergencyAlertStatus");
+ const selected=[...document.querySelectorAll("#emergencyRecipients input:checked")].map(el=>contacts[Number(el.value)]).filter(Boolean);
+ if(!selected.length){status.textContent="पहले कम-से-कम एक Trusted Contact चुनें।";return;}
+ let message=document.getElementById("emergencyAlertMessage").value.trim();
+ if(!message){status.textContent="कृपया अलर्ट संदेश लिखें।";return;}
+ if(document.getElementById("alertIncludeLocation").checked){
+  try{const p=await getLocation();message+="\nमेरी वर्तमान लोकेशन: https://maps.google.com/?q="+p.lat+","+p.lng;}
+  catch(e){if(!confirm("लोकेशन नहीं मिल सकी। बिना लोकेशन के SMS ऐप खोलें?"))return;}
+ }
+ const numbers=selected.map(c=>c.phone.replace(/\s/g,"")).join(",");
+ if(!confirm("चुने हुए संपर्क:\n"+selected.map(c=>c.name+" - "+c.phone).join("\n")+"\n\nसंदेश SMS ऐप में खुलेगा। आपको खुद Send दबाना होगा।\n\nजारी रखें?"))return;
+ status.textContent="SMS ऐप खुल रहा है। भेजने से पहले संदेश जाँचें।";
+ saveSOSHistory("Emergency Alert SMS ऐप खोला गया — भेजने की पुष्टि नहीं");
+ location.href="sms:"+numbers+"?body="+encodeURIComponent(message);
+}
 function callContact(){
  if(!contacts.length){alert("Add a trusted contact first.");return;}
  location.href="tel:"+contacts[0].phone.replace(/\s/g,"");
