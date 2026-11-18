@@ -710,12 +710,12 @@ window.queueBLACKAIStreamSpeech=function(fullText,flush=false){
  const text=String(fullText||"");
  if(text.length<blackaiVoiceStreamSpoken)return;
  const fresh=text.slice(blackaiVoiceStreamSpoken);
- const match=flush?fresh.match(/[\\s\\S]+/):fresh.match(/[\\s\\S]*?[.!?।\\n]+/);
+ const match=flush?fresh.match(/[\s\S]+/):fresh.match(/[\s\S]*?[.!?।\n]+/);
  if(!match||!match[0].trim())return;
  const chunk=match[0].trim();
  blackaiVoiceStreamSpoken+=match[0].length;
  const utterance=new SpeechSynthesisUtterance(chunk);
- utterance.lang=/[\\u0900-\\u097F]/.test(chunk)?"hi-IN":"en-IN";
+ utterance.lang=/[\u0900-\u097F]/.test(chunk)?"hi-IN":"en-IN";
  utterance.rate=1.05;
  speechSynthesis.speak(utterance);
  blackaiVoiceStreamHandled=true;
@@ -724,7 +724,7 @@ window.speakBLACKAIReply=function(text){
  if(!("speechSynthesis" in window)){document.getElementById("aiStatus").textContent="इस ब्राउज़र में आवाज़ सुनाने की सुविधा उपलब्ध नहीं है।";return;}
  speechSynthesis.cancel();
  const utterance=new SpeechSynthesisUtterance(String(text).slice(0,4000));
- utterance.lang=/[\\u0900-\\u097F]/.test(text)?"hi-IN":"en-IN";
+ utterance.lang=/[\u0900-\u097F]/.test(text)?"hi-IN":"en-IN";
  utterance.rate=1;
  speechSynthesis.speak(utterance);
 };
