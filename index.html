@@ -667,18 +667,30 @@ function blackaiIsTemporaryError(error){
  return /\\b(429|500|502|503|504)\\b|high demand|overloaded|temporarily unavailable|try again|internal error|service unavailable/.test(message);
 }
 function blackaiWait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
-async function blackaiTryModel(model,prompt,label){
+async function blackaiTryModel(model,prompt,label,onChunk){
  let lastError;
  for(let attempt=0;attempt<2;attempt++){
   try{
-   if(attempt===0)document.getElementById("aiStatus").textContent=label+" से जवाब तैयार हो रहा है...";
-   else document.getElementById("aiStatus").textContent=label+" व्यस्त है। दोबारा कोशिश कर रहे हैं...";
+   document.getElementById("aiStatus").textContent=attempt===0?label+" से जवाब आ रहा है...":label+" व्यस्त है। दोबारा कोशिश कर रहे हैं...";
+   if(typeof model.generateContentStream==="function"){
+    const result=await model.generateContentStream(prompt);
+    let answer="";
+    for await(const chunk of result.stream){
+     answer+=chunk.text();
+     if(onChunk)onChunk(answer);
+    }
+    await result.response;
+    if(answer.trim())return answer;
+   }
    const result=await model.generateContent(prompt);
-   return result.response.text();
+   const answer=result.response.text();
+   if(onChunk)onChunk(answer);
+   return answer;
   }catch(error){
    lastError=error;
+   if(onChunk)onChunk("");
    if(!blackaiIsTemporaryError(error)||attempt===1)throw error;
-   await blackaiWait(1500);
+   await blackaiWait(1000);
   }
  }
  throw lastError;
@@ -743,20 +755,34 @@ window.sendBLACKAIMessage=async function(){
  if(blackaiBusy)return;
  blackaiBusy=true;button.disabled=true;
  blackaiAddMessage(prompt,"user");input.value="";
+ let liveReply=null;
  try{
   await blackaiInit();
+  liveReply=document.createElement("div");
+  liveReply.className="ai-message ai-bot";
+  liveReply.textContent="जवाब तैयार हो रहा है…";
+  const messageBox=document.getElementById("aiMessages");
+  messageBox.appendChild(liveReply);
+  messageBox.scrollTop=messageBox.scrollHeight;
+  const showStream=text=>{
+   if(!liveReply)return;
+   liveReply.textContent=text||"जवाब तैयार हो रहा है…";
+   messageBox.scrollTop=messageBox.scrollHeight;
+  };
   let answer;
   try{
-   answer=await blackaiTryModel(blackaiModel,prompt,"मुख्य AI");
+   answer=await blackaiTryModel(blackaiModel,prompt,"मुख्य AI",showStream);
   }catch(primaryError){
    if(!blackaiIsTemporaryError(primaryError))throw primaryError;
    status.textContent="मुख्य AI अभी व्यस्त है। Backup AI पर कोशिश कर रहे हैं...";
-   answer=await blackaiTryModel(blackaiBackupModel,prompt,"Backup AI");
+   answer=await blackaiTryModel(blackaiBackupModel,prompt,"Backup AI",showStream);
    status.textContent="Backup AI से जवाब मिल गया।";
   }
+  if(liveReply){liveReply.remove();liveReply=null;}
   blackaiAddMessage(answer||"इस बार जवाब नहीं मिला।","bot");
   if(!status.textContent.includes("Backup AI"))status.textContent="जवाब मिल गया।";
  }catch(e){
+  if(liveReply)liveReply.remove();
   console.error("BLACKAI Gemini request error",e);
   status.textContent="अभी AI जवाब नहीं दे पाया। थोड़ी देर बाद फिर कोशिश करें। ("+String(e?.message||e).slice(0,140)+")";
  }finally{blackaiBusy=false;button.disabled=false;}
