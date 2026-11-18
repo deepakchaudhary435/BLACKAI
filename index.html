@@ -171,7 +171,7 @@ input{
  <div class="ai-tools"><select id="aiHistory" aria-label="पुरानी चैट चुनें" onchange="window.openBLACKAIChat(this.value)"><option value="">चैट हिस्ट्री</option></select><button type="button" onclick="window.newBLACKAIChat()">+ नई चैट</button><button type="button" onclick="window.deleteBLACKAIChat()">चैट डिलीट</button></div><input id="aiHistorySearch" type="search" placeholder="पुरानी चैट खोजें..." oninput="window.searchBLACKAIChats(this.value)" aria-label="चैट हिस्ट्री खोजें">
  <div id="aiMessages" aria-live="polite"><div class="ai-message ai-bot">नमस्ते! मैं BLACKAI Assistant हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?</div></div>
  <textarea id="aiInput" rows="2" placeholder="अपना सवाल लिखें..." aria-label="अपना सवाल लिखें"></textarea>
- <div class="ai-tools"><button id="aiMic" type="button" onclick="window.startBLACKAIVoice()">🎙️ बोलकर पूछें</button><button id="aiSpeakToggle" type="button" onclick="window.toggleBLACKAISpeech()">🔊 आवाज़ में जवाब: बंद</button></div>
+ <div class="ai-tools"><button id="aiMic" type="button" onclick="window.startBLACKAIVoice()">🎙️ बोलकर पूछें</button><button id="aiSpeakToggle" type="button" onclick="window.toggleBLACKAISpeech()">🔊 आवाज़ में जवाब: बंद</button><select id="aiVoiceChoice" aria-label="आवाज़ चुनें" onchange="window.setBLACKAIVoice(this.value)"><option value="">डिफ़ॉल्ट आवाज़</option></select><button type="button" onclick="window.pauseBLACKAIVoice()">⏸ रोकें / ▶ जारी</button></div>
  <button id="aiSend" type="button" onclick="window.sendBLACKAIMessage()">भेजें</button>
  <div id="aiStatus" role="status" aria-live="polite"></div>
 </section>
@@ -742,16 +742,37 @@ window.queueBLACKAIStreamSpeech=function(fullText,flush=false){
  speechSynthesis.speak(utterance);
  blackaiVoiceStreamHandled=true;
 };
+let blackaiSelectedVoiceURI="";
+window.loadBLACKAIVoices=function(){
+ if(!("speechSynthesis" in window))return;
+ const select=document.getElementById("aiVoiceChoice");if(!select)return;
+ const voices=speechSynthesis.getVoices();
+ const previous=blackaiSelectedVoiceURI||select.value;
+ select.innerHTML="";
+ const automatic=document.createElement("option");automatic.value="";automatic.textContent="डिफ़ॉल्ट आवाज़";select.appendChild(automatic);
+ voices.forEach(voice=>{
+  const option=document.createElement("option");option.value=voice.voiceURI;
+  option.textContent=voice.name+" ("+voice.lang+")";select.appendChild(option);
+ });
+ if(previous&&voices.some(v=>v.voiceURI===previous))select.value=previous;
+};
+window.setBLACKAIVoice=function(uri){blackaiSelectedVoiceURI=uri||"";};
+window.pauseBLACKAIVoice=function(){
+ if(!("speechSynthesis" in window))return;
+ if(speechSynthesis.speaking&&!speechSynthesis.paused){speechSynthesis.pause();document.getElementById("aiStatus").textContent="आवाज़ रोक दी गई।";}
+ else if(speechSynthesis.paused){speechSynthesis.resume();document.getElementById("aiStatus").textContent="आवाज़ फिर से चल रही है।";}
+};
 window.speakBLACKAIReply=function(text){
  if(!("speechSynthesis" in window)){document.getElementById("aiStatus").textContent="इस ब्राउज़र में आवाज़ सुनाने की सुविधा उपलब्ध नहीं है।";return;}
  speechSynthesis.cancel();
  const utterance=new SpeechSynthesisUtterance(String(text).slice(0,4000));
  utterance.lang=/[\u0900-\u097F]/.test(text)?"hi-IN":"en-IN";
+ const chosen=speechSynthesis.getVoices().find(v=>v.voiceURI===blackaiSelectedVoiceURI);
+ if(chosen)utterance.voice=chosen;
  utterance.rate=1;
  utterance.onstart=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="BLACKAI बोलकर जवाब दे रहा है…";};
- utterance.onerror=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="आवाज़ नहीं चल पाई। फोन का मीडिया वॉल्यूम और ब्राउज़र की आवाज़ जांचें।";};
- speechSynthesis.resume();
- speechSynthesis.speak(utterance);
+ utterance.onerror=()=>{const status=document.getElementById("aiStatus");if(status)status.textContent="आवाज़ नहीं चल पाई। डिफ़ॉल्ट आवाज़ चुनकर देखें।";};
+ speechSynthesis.resume();speechSynthesis.speak(utterance);
 };
 window.startBLACKAIVoice=function(){
  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -834,7 +855,7 @@ window.sendBLACKAIMessage=async function(){
   status.textContent="अभी AI जवाब नहीं दे पाया। थोड़ी देर बाद फिर कोशिश करें। ("+String(e?.message||e).slice(0,140)+")";
  }finally{blackaiBusy=false;button.disabled=false;}
 };
-document.addEventListener("DOMContentLoaded",()=>{blackaiInit().catch(()=>{});});
+document.addEventListener("DOMContentLoaded",()=>{blackaiInit().catch(()=>{});if("speechSynthesis" in window){window.loadBLACKAIVoices();speechSynthesis.onvoiceschanged=window.loadBLACKAIVoices;}});
 </script>
 
 </body>
