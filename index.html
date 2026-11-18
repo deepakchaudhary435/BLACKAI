@@ -208,6 +208,8 @@ input{
 
 <h2>Recent activity</h2>
 <div class="contact" id="activity">No recent activity</div>
+<h2>🛡️ SOS History</h2>
+<div id="sosHistory" aria-live="polite"><div class="contact">अभी कोई SOS गतिविधि नहीं है।</div></div>
 
 <div class="bottom">
  <button class="active" onclick="home()">⌂<br>Home</button>
@@ -402,6 +404,40 @@ async function shareLocation(){
  }
 }
 
+let sosHistory=[];
+try{
+ const savedSOS=JSON.parse(localStorage.getItem("blackai_sos_history")||"[]");
+ if(Array.isArray(savedSOS)) sosHistory=savedSOS.slice(0,10);
+}catch(e){sosHistory=[];}
+function saveSOSHistory(status){
+ const entry={status,time:new Date().toLocaleString("hi-IN")};
+ sosHistory.unshift(entry);
+ sosHistory=sosHistory.slice(0,10);
+ try{localStorage.setItem("blackai_sos_history",JSON.stringify(sosHistory));}catch(e){}
+ renderSOSHistory();
+}
+function renderSOSHistory(){
+ const area=document.getElementById("sosHistory");
+ if(!area)return;
+ area.innerHTML="";
+ if(!sosHistory.length){
+  const empty=document.createElement("div");
+  empty.className="contact";empty.textContent="अभी कोई SOS गतिविधि नहीं है।";
+  area.appendChild(empty);return;
+ }
+ sosHistory.forEach(item=>{
+  const card=document.createElement("div");
+  card.className="contact";
+  const label=document.createElement("strong");
+  label.textContent=item.status;
+  const time=document.createElement("div");
+  time.textContent=item.time;
+  time.style.color="#aab4c5";time.style.fontSize="12px";time.style.marginTop="5px";
+  card.append(label,time);area.appendChild(card);
+ });
+}
+renderSOSHistory();
+
 let sosTimer=null;
 function startSOS(){
  const msg=document.getElementById("message");
@@ -410,6 +446,7 @@ function startSOS(){
   clearTimeout(sosTimer);
   sosTimer=null;
   msg.textContent="SOS cancelled.";
+  saveSOSHistory("रद्द किया गया — Countdown के दौरान");
   button.disabled=false;
   button.innerHTML="⚠<br>SOS<small>TAP FOR HELP</small>";
   return;
@@ -439,8 +476,10 @@ function startSOS(){
   if(!confirmed){
    msg.textContent="SOS message cancelled. Nothing was sent.";
    log("SOS cancelled by user - "+new Date().toLocaleTimeString());
+   saveSOSHistory("रद्द किया गया — पुष्टि स्क्रीन पर");
    return;
   }
+  saveSOSHistory("संदेश ऐप खोला गया — भेजने की पुष्टि नहीं");
   const numbers=contacts.map(c=>c.phone.replace(/\s/g,"")).join(",");
   location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
  },3000);
