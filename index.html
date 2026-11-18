@@ -290,6 +290,8 @@ input{
  <input id="blackaiBackupFile" type="file" accept=".json,application/json" style="display:none" onchange="restoreBLACKAIBackup(this)">
  <button class="sensor-connect" type="button" onclick="document.getElementById('blackaiBackupFile').click()">⬆️ Backup Restore करें</button>
  <p id="backupStatus" class="sensor-foot" aria-live="polite">बैकअप फाइल निजी रखें। इसमें फोन नंबर और निजी जानकारी हो सकती है। Restore करने पर मौजूदा सेव डेटा बदल जाएगा।</p>
+ <p id="backupReminderStatus" class="sensor-foot" aria-live="polite">बैकअप रिमाइंडर: हर 7 दिन में बैकअप लेने की सलाह।</p>
+ <button class="sensor-connect" type="button" onclick="checkBLACKAIBackupReminder(true)">🔔 बैकअप रिमाइंडर जाँचें</button>
 </section>
 
 
@@ -402,6 +404,7 @@ auth.onAuthStateChanged(user=>{
  app.style.display=user?"block":"none";
  if(user){
   loadTrustedContacts(user.uid);
+  checkBLACKAIBackupReminder(false);
   const old=document.getElementById("logoutBtn");
   if(!old){
    const b=document.createElement("button");
@@ -533,8 +536,31 @@ function backupBLACKAI(){
   const url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download="BLACKAI-backup-"+new Date().toISOString().slice(0,10)+".json";
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  localStorage.setItem("blackai_last_backup_"+uid,String(Date.now()));
   status.textContent="Backup फाइल डाउनलोड के लिए तैयार है। इसे सुरक्षित जगह रखें और किसी से साझा न करें।";
+  checkBLACKAIBackupReminder(false);
  }catch(e){status.textContent="Backup नहीं बन पाया। फोन की storage और browser permission जांचें।";}
+}
+function checkBLACKAIBackupReminder(showAlert){
+ const user=auth.currentUser,status=document.getElementById("backupReminderStatus");
+ if(!user||!status)return;
+ const key="blackai_last_backup_"+user.uid;
+ const last=Number(localStorage.getItem(key)||0);
+ const week=7*24*60*60*1000;
+ if(!last){
+  status.textContent="🔔 अभी तक इस फीचर से बैकअप दर्ज नहीं है। आज Backup डाउनलोड करके सुरक्षित रखें।";
+  if(showAlert)alert("BLACKAI का बैकअप अभी दर्ज नहीं है। Backup डाउनलोड करके फोन में सुरक्षित रखें।");
+  return;
+ }
+ const remaining=week-(Date.now()-last);
+ if(remaining<=0){
+  status.textContent="⏰ बैकअप को 7 दिन हो गए हैं। नया Backup डाउनलोड करने का समय है।";
+  if(showAlert)alert("BLACKAI Backup Reminder: पिछले बैकअप को 7 दिन हो गए हैं। नया बैकअप लें।");
+ }else{
+  const days=Math.ceil(remaining/(24*60*60*1000));
+  status.textContent="✓ पिछला बैकअप सेव: "+new Date(last).toLocaleDateString("hi-IN")+". अगला रिमाइंडर लगभग "+days+" दिन बाद।";
+  if(showAlert)alert("अगला BLACKAI Backup Reminder लगभग "+days+" दिन बाद दिखेगा।");
+ }
 }
 function restoreBLACKAIBackup(input){
  const status=document.getElementById("backupStatus"),user=auth.currentUser,file=input.files&&input.files[0];
