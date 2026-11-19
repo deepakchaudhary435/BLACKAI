@@ -175,7 +175,7 @@ input{
   <div class="intro-tag">PERSONAL SAFETY • SMART PROTECTION</div>
   <div class="intro-line"></div>
   <div class="intro-sub">आपकी सुरक्षा, हमारी प्राथमिकता</div>
-  <button type="button" id="blackaiIntroSkip">आगे बढ़ें</button>
+  
  </div>
 </div>
 
@@ -1745,8 +1745,6 @@ async function loadBLACKAIAdminTickets(){
  if(!intro)return;
  let closed=false;
  function closeIntro(){if(closed)return;closed=true;intro.classList.add("hide");setTimeout(()=>intro.remove(),700);}
- const skip=document.getElementById("blackaiIntroSkip");
- if(skip)skip.addEventListener("click",closeIntro);
  setTimeout(closeIntro,3800);
 })();
 </script>
