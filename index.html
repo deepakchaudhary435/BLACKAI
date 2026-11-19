@@ -366,8 +366,12 @@ input{
   <div class="contact" style="display:block">
    <div id="blackaiAnalyticsTotal" style="font-size:22px;font-weight:800;color:#fff">कुल यूजर: —</div>
    <div id="blackaiAnalyticsActive" style="margin-top:8px;color:#8fe0ae;font-weight:700">अभी Active: —</div>
+   <div id="blackaiAnalyticsToday" style="margin-top:10px;font-weight:700">आज नए यूजर: —</div>
+   <div id="blackaiAnalyticsWeek" style="margin-top:8px;font-weight:700">पिछले 7 दिनों में नए यूजर: —</div>
    <div id="blackaiAnalyticsUpdated" class="sensor-foot" style="margin-top:8px">अभी डेटा लोड नहीं हुआ।</div>
   </div>
+  <h4 style="margin:14px 0 8px">🗓️ यूजर रजिस्ट्रेशन तारीख</h4>
+  <div id="blackaiRegistrationList" class="contact" style="display:block;max-height:320px;overflow:auto">रजिस्ट्रेशन रिकॉर्ड लोड नहीं हुए।</div>
   <button class="sensor-connect" type="button" onclick="loadBLACKAIUserAnalytics()">📊 Analytics रिफ्रेश करें</button>
 
   <p class="sensor-foot">यह हिस्सा केवल अधिकृत Admin अकाउंट के लिए है। नई रिपोर्ट को मुफ्त में WhatsApp पर साझा करने के लिए नीचे दिया बटन दबाएँ; मैसेज भेजने से पहले WhatsApp में खुद पुष्टि करें।</p>
@@ -1527,12 +1531,31 @@ async function loadBLACKAIUserAnalytics(){
  if(totalEl)totalEl.textContent="यूजर डेटा लोड हो रहा है…";
  try{
   const snap=await liveDB.ref("userAnalytics").once("value");
-  const users=snap.val()||{},entries=Object.values(users).filter(v=>v&&typeof v==="object");
-  const cutoff=Date.now()-120000;
-  const active=entries.filter(v=>Number(v.lastSeen)>=cutoff).length;
+  const users=snap.val()||{};
+  const entries=Object.entries(users).filter(([uid,v])=>v&&typeof v==="object"&&Number.isFinite(Number(v.createdAt)));
+  const now=Date.now(),today=new Date();today.setHours(0,0,0,0);
+  const todayCount=entries.filter(([,v])=>Number(v.createdAt)>=today.getTime()&&Number(v.createdAt)<=now).length;
+  const weekStart=now-7*24*60*60*1000;
+  const weekCount=entries.filter(([,v])=>Number(v.createdAt)>=weekStart&&Number(v.createdAt)<=now).length;
+  const cutoff=now-120000;
+  const active=entries.filter(([,v])=>Number(v.lastSeen)>=cutoff).length;
   if(totalEl)totalEl.textContent="कुल यूजर: "+entries.length;
   if(activeEl)activeEl.textContent="अभी Active: "+active;
-  if(updatedEl)updatedEl.textContent="आखिरी अपडेट: "+new Date().toLocaleString("hi-IN")+" | डेटा अपडेट के बाद लॉगिन करने वाले यूजर्स का है।";
+  const todayEl=document.getElementById("blackaiAnalyticsToday");
+  const weekEl=document.getElementById("blackaiAnalyticsWeek");
+  if(todayEl)todayEl.textContent="आज नए यूजर: "+todayCount;
+  if(weekEl)weekEl.textContent="पिछले 7 दिनों में नए यूजर: "+weekCount;
+  const listEl=document.getElementById("blackaiRegistrationList");
+  if(listEl){
+   const sorted=entries.sort((a,b)=>Number(b[1].createdAt)-Number(a[1].createdAt));
+   if(!sorted.length)listEl.textContent="अभी कोई रजिस्ट्रेशन रिकॉर्ड नहीं है।";
+   else listEl.innerHTML=sorted.map(([uid,v])=>{
+    const date=new Date(Number(v.createdAt)).toLocaleString("hi-IN");
+    const safeUid=String(uid).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+    return '<div style="padding:8px 0;border-bottom:1px solid #394252"><strong>'+safeUid+'</strong><div class="sensor-foot">तारीख: '+date+'</div></div>';
+   }).join("");
+  }
+  if(updatedEl)updatedEl.textContent="आखिरी अपडेट: "+new Date().toLocaleString("hi-IN")+" | पुराने अकाउंट की तारीख उस अकाउंट के इस Analytics में पहली बार लॉगिन करने का समय है।";
  }catch(e){
   if(totalEl)totalEl.textContent="यूजर डेटा नहीं खुला।";
   if(activeEl)activeEl.textContent="Firebase Rules में Admin read अनुमति जाँचें।";
@@ -1798,10 +1821,3 @@ async function loadBLACKAIAdminTickets(){
  const intro=document.getElementById("blackaiIntro");
  if(!intro)return;
  let closed=false;
- function closeIntro(){if(closed)return;closed=true;intro.classList.add("hide");setTimeout(()=>intro.remove(),700);}
- setTimeout(closeIntro,3800);
-})();
-</script>
-</body>
-  </html>
-    
