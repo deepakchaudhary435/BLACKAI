@@ -1853,6 +1853,7 @@ async function loadBLACKAIAdminTickets(){
   ["home","⌂","Home","आपकी सुरक्षा का मुख्य डैशबोर्ड"],
   ["emergency","🚨","Emergency & SOS","SOS और आपातकालीन सहायता"],
   ["safety","🛡️","Safety Tools","सुरक्षा जाँच और स्मार्ट सेंसर"],
+  ["suraksha","🚨","Suraksha AI","Emergency SOS और सुरक्षा अलर्ट"],
   ["location","📍","Live Location","चुने हुए संपर्क के साथ लोकेशन शेयर करें"],
   ["contacts","👥","Trusted Contacts","अपने भरोसेमंद संपर्क मैनेज करें"],
   ["assistant","🤖","BLACKAI Assistant","AI से सवाल पूछें और चैट हिस्ट्री देखें"],
@@ -1890,6 +1891,7 @@ async function loadBLACKAIAdminTickets(){
  const cards=[
   ["emergency","🚨","Emergency & SOS","SOS, Police, Ambulance और अलर्ट"],
   ["safety","🛡️","Safety Tools","सेंसर और सुरक्षा चेकलिस्ट"],
+  ["suraksha","🚨","Suraksha AI","SOS, trusted contacts और emergency location"],
   ["location","📍","Live Location","5 घंटे तक लोकेशन शेयर"],
   ["contacts","👥","Trusted Contacts","संपर्क जोड़ें और मैनेज करें"],
   ["assistant","🤖","BLACKAI AI","AI चैट, आवाज़ और हिस्ट्री"],
@@ -1931,6 +1933,27 @@ async function loadBLACKAIAdminTickets(){
  if(links[3])links[3].onclick=()=>window.openBLACKAIPage("contacts");
 })();
 </script>
+
+<script>
+(function(){
+ const page=document.getElementById("blackaiPageSuraksha");
+ if(!page)return;
+ const panel=document.createElement("div");
+ panel.className="sensor-dashboard";
+ panel.innerHTML='<h2 style="margin:0 0 10px">🚨 BLACKAI SURAKSHA AI</h2>'+
+ '<p class="sensor-intro">आपातकाल में मदद पाने के लिए SOS और Live Location सुविधाएँ एक जगह।</p>'+
+ '<div class="sensor-item" style="margin:10px 0"><b>1. Manual Emergency SOS</b><small>मौजूदा SOS सुविधा Trusted Contacts के लिए SMS ऐप खोलती है। संदेश आपको खुद जाँचकर Send करना होगा।</small><button class="sensor-connect" type="button" id="surakshaOpenSOS">SOS पेज खोलें</button></div>'+
+ '<div class="sensor-item" style="margin:10px 0"><b>2. Live Location Sharing</b><small>आपकी अनुमति से GPS लोकेशन चुने हुए Trusted Contact के साथ शेयर होगी। शेयरिंग रोकने का विकल्प उपलब्ध है।</small><button class="sensor-connect" type="button" id="surakshaOpenLocation">Live Location खोलें</button></div>'+
+ '<div class="sensor-item" style="margin:10px 0"><b>3. Automatic Safety Detection</b><small>यह सुविधा अभी सक्रिय नहीं है। केवल वेबसाइट से अपहरण या अपराध की विश्वसनीय पहचान, बैकग्राउंड में लगातार निगरानी या स्वतः पुलिस डिस्पैच संभव नहीं है। इसके लिए अलग Android ऐप, परीक्षण किए हुए सुरक्षा संकेत, सुरक्षित backend और उपयोगकर्ता की स्पष्ट अनुमति चाहिए।</small><span class="sensor-pill" style="display:inline-block;margin-top:9px">अभी उपलब्ध नहीं</span></div>'+
+ '<div class="sensor-item" style="margin:10px 0"><b>4. Police Emergency Connection</b><small>BLACKAI अभी पुलिस कंट्रोल रूम या 112 सिस्टम से सीधे जुड़ा नहीं है। गंभीर आपातकाल में भारत में 112 पर कॉल करें।</small><button class="sensor-connect" type="button" id="surakshaCall112">📞 112 पर कॉल करें</button></div>'+
+ '<p class="sensor-foot">महत्वपूर्ण: BLACKAI को अकेला आपातकालीन माध्यम न मानें। SOS SMS भेजने की गारंटी नहीं देता और Live Location तभी अपडेट होती है जब डिवाइस, ब्राउज़र, इंटरनेट और GPS सक्रिय हों।</p>';
+ page.appendChild(panel);
+ document.getElementById("surakshaOpenSOS").onclick=()=>window.openBLACKAIPage("emergency");
+ document.getElementById("surakshaOpenLocation").onclick=()=>window.openBLACKAIPage("location");
+ document.getElementById("surakshaCall112").onclick=()=>{if(confirm("आपातकालीन सेवा 112 पर कॉल करने के लिए Phone app खोलें?"))location.href="tel:112";};
+})();
+</script>
+
 </body>
 </html>
     
