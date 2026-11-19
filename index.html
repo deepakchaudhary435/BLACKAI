@@ -994,19 +994,29 @@ function renderSOSHistory(){
 renderSOSHistory();
 
 let sosTimer=null;
+let sosPreparing=false;
+function resetSOSButton(button){
+ if(!button)return;
+ button.disabled=false;
+ button.innerHTML="⚠<br>SOS<small>TAP FOR HELP</small>";
+}
 function startSOS(){
  const msg=document.getElementById("message");
  const button=document.querySelector(".sos");
+ if(!msg||!button)return;
+ if(sosPreparing){
+  msg.textContent="SOS message is being prepared. Please wait for the confirmation screen.";
+  return;
+ }
  if(sosTimer!==null){
   clearTimeout(sosTimer);
   sosTimer=null;
   msg.textContent="SOS cancelled.";
   saveSOSHistory("रद्द किया गया — Countdown के दौरान");
-  button.disabled=false;
-  button.innerHTML="⚠<br>SOS<small>TAP FOR HELP</small>";
+  resetSOSButton(button);
   return;
  }
- if(!contacts.length){
+ if(!Array.isArray(contacts)||!contacts.length){
   msg.textContent="Please add a trusted contact first.";
   return;
  }
@@ -1015,28 +1025,38 @@ function startSOS(){
  button.innerHTML="CANCEL<small>TAP AGAIN TO STOP</small>";
  sosTimer=setTimeout(async()=>{
   sosTimer=null;
-  button.innerHTML="⚠<br>SOS<small>TAP FOR HELP</small>";
-  let map="";
+  sosPreparing=true;
+  button.disabled=true;
+  button.innerHTML="PREPARING...<small>PLEASE WAIT</small>";
   try{
-   const p=await getLocation();
-   map=" My location: https://maps.google.com/?q="+p.lat+","+p.lng;
+   let map="";
+   try{
+    const p=await getLocation();
+    map=" My location: https://maps.google.com/?q="+p.lat+","+p.lng;
+   }catch(e){
+    map=" Location unavailable. Please call me.";
+   }
+   const text="EMERGENCY! I need help."+map;
+   const recipientNames=contacts.map(c=>c.name+" ("+c.phone+")").join("\n");
+   msg.textContent="SOS message ready. Please review the recipients and confirm before opening Messages.";
+   log("SOS message ready for review - "+new Date().toLocaleTimeString());
+   const confirmed=confirm("Send this emergency message using your messaging app?\n\nTrusted contacts:\n"+recipientNames+"\n\nMessage:\n"+text+"\n\nआपको Messages ऐप में जाकर खुद Send दबाना होगा।");
+   if(!confirmed){
+    msg.textContent="SOS message cancelled. Nothing was sent.";
+    log("SOS cancelled by user - "+new Date().toLocaleTimeString());
+    saveSOSHistory("रद्द किया गया — पुष्टि स्क्रीन पर");
+    return;
+   }
+   saveSOSHistory("संदेश ऐप खोला गया — भेजने की पुष्टि नहीं");
+   const numbers=contacts.map(c=>c.phone.replace(/\s/g,"")).join(",");
+   location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
   }catch(e){
-   map=" Location unavailable. Please call me.";
+   msg.textContent="SOS message could not be prepared. If this is an emergency, call 112 directly.";
+   log("SOS preparation failed - "+new Date().toLocaleTimeString());
+  }finally{
+   sosPreparing=false;
+   resetSOSButton(button);
   }
-  const text="EMERGENCY! I need help."+map;
-  const recipientNames=contacts.map(c=>c.name+" ("+c.phone+")").join("\n");
-  msg.textContent="SOS message ready. Please review the recipients and confirm before opening Messages.";
-  log("SOS message ready for review - "+new Date().toLocaleTimeString());
-  const confirmed=confirm("Send this emergency message using your messaging app?\n\nTrusted contacts:\n"+recipientNames+"\n\nMessage:\n"+text+"\n\nआपको Messages ऐप में जाकर खुद Send दबाना होगा।");
-  if(!confirmed){
-   msg.textContent="SOS message cancelled. Nothing was sent.";
-   log("SOS cancelled by user - "+new Date().toLocaleTimeString());
-   saveSOSHistory("रद्द किया गया — पुष्टि स्क्रीन पर");
-   return;
-  }
-  saveSOSHistory("संदेश ऐप खोला गया — भेजने की पुष्टि नहीं");
-  const numbers=contacts.map(c=>c.phone.replace(/\s/g,"")).join(",");
-  location.href="sms:"+numbers+"?body="+encodeURIComponent(text);
  },3000);
 }
 function callEmergencyService(number,service){
