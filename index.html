@@ -164,6 +164,28 @@ input{
 @keyframes introRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#blackaiIntro *,#blackaiIntro:before{animation:none!important;transition:none!important}}
 
+
+/* BLACKAI dedicated feature pages */
+.blackai-page{display:none;animation:blackaiPageIn .22s ease both;padding-bottom:18px}
+.blackai-page.active{display:block}
+.blackai-page-head{display:flex;align-items:center;gap:12px;margin:8px 0 18px;padding:14px 15px;border:1px solid #2c4564;border-radius:16px;background:linear-gradient(120deg,#182a43,#111722);box-shadow:0 8px 24px #0004}
+.blackai-page-head button{border:1px solid #52647d;border-radius:10px;background:#29384c;color:#fff;padding:10px 13px;font-size:18px}
+.blackai-page-head strong{font-size:17px}
+.blackai-page-head small{display:block;color:#9eafc7;font-size:11px;margin-top:4px;font-weight:normal}
+.blackai-launch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}
+.blackai-launch-card{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-height:118px;padding:17px 14px;border:1px solid #344b68;border-radius:17px;background:linear-gradient(145deg,#1b2a3d,#121923);color:#fff;text-align:left;box-shadow:0 7px 18px #0004}
+.blackai-launch-card:active{transform:scale(.985)}
+.blackai-launch-card .launch-icon{font-size:27px}
+.blackai-launch-card b{font-size:14px}
+.blackai-launch-card small{font-size:11px;color:#aebbd0;line-height:1.4}
+.blackai-page-intro{color:#9eacc0;font-size:12px;line-height:1.55;margin:0 0 12px}
+#blackaiPageHome>h1{margin-top:20px}
+#blackaiBottomNav{z-index:1000;padding:10px 3px calc(10px + env(safe-area-inset-bottom));backdrop-filter:blur(14px);box-shadow:0 -8px 25px #0005}
+#blackaiBottomNav button{min-width:58px;padding:3px 8px;font-size:11px;line-height:1.45}
+#blackaiBottomNav button.active{color:#ff5269;font-weight:bold}
+@keyframes blackaiPageIn{from{opacity:.55;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:700px){.blackai-launch-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.blackai-page{max-width:900px;margin:0 auto}}
+
 </style>
 <meta name="google-site-verification" content="TWdjJD0aLAyMovgxTUS2IBVVA-a9gpma0eUcT-4apSA" />
 </head>
@@ -385,11 +407,11 @@ input{
  </div>
 </section>
 
-<div class="bottom">
- <button class="active" onclick="home()">⌂<br>Home</button>
- <button onclick="shareLocation()">➤<br>Location</button>
- <button onclick="showContacts()">♟<br>Contacts</button>
- <button onclick="profile()">●<br>Profile</button>
+<div class="bottom" id="blackaiBottomNav">
+ <button class="active" data-page="home" onclick="openBLACKAIPage('home')">⌂<br>Home</button>
+ <button data-page="emergency" onclick="openBLACKAIPage('emergency')">🚨<br>Safety</button>
+ <button data-page="assistant" onclick="openBLACKAIPage('assistant')">🤖<br>AI</button>
+ <button data-page="more" onclick="openBLACKAIPage('more')">☰<br>More</button>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js">
@@ -1821,3 +1843,98 @@ async function loadBLACKAIAdminTickets(){
  const intro=document.getElementById("blackaiIntro");
  if(!intro)return;
  let closed=false;
+ function closeIntro(){if(closed)return;closed=true;intro.classList.add("hide");setTimeout(()=>intro.remove(),700);}
+ setTimeout(closeIntro,3800);
+})();
+</script>
+</body>
+  <script>
+(function(){
+ const app=document.getElementById("appContent");
+ if(!app||document.getElementById("blackaiPageHome"))return;
+ const defs=[
+  ["home","⌂","Home","आपकी सुरक्षा का मुख्य डैशबोर्ड"],
+  ["emergency","🚨","Emergency & SOS","SOS और आपातकालीन सहायता"],
+  ["safety","🛡️","Safety Tools","सुरक्षा जाँच और स्मार्ट सेंसर"],
+  ["location","📍","Live Location","चुने हुए संपर्क के साथ लोकेशन शेयर करें"],
+  ["contacts","👥","Trusted Contacts","अपने भरोसेमंद संपर्क मैनेज करें"],
+  ["assistant","🤖","BLACKAI Assistant","AI से सवाल पूछें और चैट हिस्ट्री देखें"],
+  ["history","🕘","Activity & History","हाल की गतिविधि और SOS हिस्ट्री"],
+  ["backup","💾","Backup & Recovery","अपने डेटा का बैकअप और Restore"],
+  ["support","🆘","Help & Support","सहायता रिपोर्ट और Admin Panel"],
+  ["profile","👤","My Profile","अपनी प्रोफाइल और अकाउंट"],
+  ["more","☰","All Features","BLACKAI के सभी फीचर्स"]
+ ];
+ const pages={};
+ defs.forEach(([id,icon,title,sub])=>{
+  const p=document.createElement("section");p.className="blackai-page"+(id==="home"?" active":"");p.id="blackaiPage"+id.charAt(0).toUpperCase()+id.slice(1);p.dataset.page=id;
+  const head=document.createElement("div");head.className="blackai-page-head";
+  head.innerHTML='<button type="button" aria-label="Home" onclick="openBLACKAIPage(\'home\')">‹</button><div><strong>'+icon+' '+title+'</strong><small>'+sub+'</small></div>';
+  p.appendChild(head);app.appendChild(p);pages[id]=p;
+ });
+ const get=id=>document.getElementById(id);
+ const findHeading=txt=>Array.from(app.querySelectorAll("h2")).find(x=>x.textContent.trim()===txt);
+ const move=(id,page)=>{const el=get(id);if(el)pages[page].appendChild(el);};
+ const moveHeading=(txt,page)=>{const el=findHeading(txt);if(el)pages[page].appendChild(el);};
+ move("homeProfile","home");move("location","home");
+ const header=app.querySelector("header");if(header)pages.home.insertBefore(header,pages.home.children[1]||null);
+ const hero=Array.from(app.querySelectorAll("h1")).find(x=>x.textContent.includes("Stay ready"));if(hero)pages.home.appendChild(hero);
+ const control=app.querySelector(".control-center");if(control)pages.home.appendChild(control);
+ move("sosControl","emergency");moveHeading("Quick actions","emergency");move("quickActions","emergency");move("emergencyAlertCard","emergency");
+ move("sensorDashboard","safety");move("safetyChecklistCard","safety");move("liveLocationCard","location");
+ moveHeading("Trusted circle","contacts");move("contacts","contacts");move("contactName","contacts");move("contactPhone","contacts");
+ const add=Array.from(app.querySelectorAll("button")).find(x=>x.textContent.trim()==="+ Add contact");if(add)pages.contacts.appendChild(add);
+ move("backupCard","backup");moveHeading("BLACKAI Assistant","assistant");move("aiChat","assistant");
+ moveHeading("Recent activity","history");move("activity","history");moveHeading("🛡️ SOS History","history");move("sosHistory","history");
+ move("supportCenter","support");
+ const profileCard=document.createElement("div");profileCard.className="sensor-dashboard";
+ profileCard.innerHTML='<h2 style="margin:0 0 10px">👤 आपकी प्रोफाइल</h2><div id="blackaiProfileSummary" class="contact" style="display:block">प्रोफाइल लोड हो रही है…</div><button class="sensor-connect" type="button" onclick="profile()">✏️ प्रोफाइल एडिट करें</button><button class="sensor-connect" type="button" onclick="logoutBLACKAI()">लॉगआउट</button>';
+ pages.profile.appendChild(profileCard);
+ const cards=[
+  ["emergency","🚨","Emergency & SOS","SOS, Police, Ambulance और अलर्ट"],
+  ["safety","🛡️","Safety Tools","सेंसर और सुरक्षा चेकलिस्ट"],
+  ["location","📍","Live Location","5 घंटे तक लोकेशन शेयर"],
+  ["contacts","👥","Trusted Contacts","संपर्क जोड़ें और मैनेज करें"],
+  ["assistant","🤖","BLACKAI AI","AI चैट, आवाज़ और हिस्ट्री"],
+  ["history","🕘","Activity & SOS History","हाल की गतिविधियाँ देखें"],
+  ["backup","💾","Backup & Recovery","डेटा सेव या Restore करें"],
+  ["support","🆘","Help & Support","रिपोर्ट, जवाब और Admin Analytics"],
+  ["profile","👤","My Profile","प्रोफाइल और अकाउंट"]
+ ];
+ function addGrid(target){
+  const grid=document.createElement("div");grid.className="blackai-launch-grid";
+  cards.forEach(([id,icon,title,desc])=>{
+   const btn=document.createElement("button");btn.type="button";btn.className="blackai-launch-card";
+   btn.innerHTML='<span class="launch-icon">'+icon+'</span><b>'+title+'</b><small>'+desc+'</small>';
+   btn.addEventListener("click",()=>window.openBLACKAIPage(id));grid.appendChild(btn);
+  });target.appendChild(grid);
+ }
+ const intro=document.createElement("p");intro.className="blackai-page-intro";intro.textContent="हर सुविधा अब अपने अलग पेज पर खुलेगी। नीचे दिए गए कार्ड से फीचर चुनें।";pages.home.appendChild(intro);addGrid(pages.home);
+ const moreIntro=document.createElement("p");moreIntro.className="blackai-page-intro";moreIntro.textContent="BLACKAI के सभी फीचर्स यहाँ उपलब्ध हैं।";pages.more.appendChild(moreIntro);addGrid(pages.more);
+ window.openBLACKAIPage=function(id){
+  if(!pages[id])id="home";
+  Object.entries(pages).forEach(([key,p])=>p.classList.toggle("active",key===id));
+  document.querySelectorAll("#blackaiBottomNav button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
+  window.scrollTo({top:0,behavior:"smooth"});
+  if(id==="profile"&&typeof renderHomeProfile==="function"){
+   renderHomeProfile();const user=auth.currentUser,summary=get("blackaiProfileSummary");
+   if(user&&summary){let data={};try{data=JSON.parse(localStorage.getItem("blackai_profile_"+user.uid)||"{}")||{};}catch(e){}
+    summary.textContent="नाम: "+(data.name||user.displayName||"नहीं जोड़ा गया")+" | मोबाइल: "+(data.phone||"नहीं जोड़ा गया")+" | ईमेल: "+(user.email||"");
+   }
+  }
+  if(id==="support"&&auth.currentUser&&auth.currentUser.uid===BLACKAI_SUPPORT_ADMIN_UID&&typeof loadBLACKAIUserAnalytics==="function")loadBLACKAIUserAnalytics();
+  if(id==="history"&&typeof renderSOSHistory==="function")renderSOSHistory();
+ };
+ window.home=function(){window.openBLACKAIPage("home");};
+ window.showContacts=function(){window.openBLACKAIPage("contacts");};
+ const links=app.querySelectorAll(".control-link");
+ if(links[0])links[0].onclick=()=>window.openBLACKAIPage("emergency");
+ if(links[1])links[1].onclick=()=>window.openBLACKAIPage("emergency");
+ if(links[2])links[2].onclick=()=>window.openBLACKAIPage("location");
+ if(links[3])links[3].onclick=()=>window.openBLACKAIPage("contacts");
+})();
+</script>
+
+</body>
+</html>
+    
