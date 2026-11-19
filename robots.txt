@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://deepakchaudhary435.github.io/BLACKAI/sitemap.xml
