@@ -361,6 +361,15 @@ input{
  <div id="mySupportTickets" aria-live="polite"><div class="contact">रिपोर्ट लोड हो रही हैं…</div></div>
  <div id="supportAdminPanel" style="display:none;margin-top:18px;border-top:1px solid #465064;padding-top:14px">
   <h3>🔐 Admin Support Panel</h3>
+  <h3>📊 BLACKAI User Analytics</h3>
+  <p class="sensor-foot">यहाँ उन यूजर्स की संख्या दिखेगी जिन्होंने इस अपडेट के बाद कम-से-कम एक बार लॉगिन किया है। Active का अनुमान पिछले 2 मिनट के heartbeat से है।</p>
+  <div class="contact" style="display:block">
+   <div id="blackaiAnalyticsTotal" style="font-size:22px;font-weight:800;color:#fff">कुल यूजर: —</div>
+   <div id="blackaiAnalyticsActive" style="margin-top:8px;color:#8fe0ae;font-weight:700">अभी Active: —</div>
+   <div id="blackaiAnalyticsUpdated" class="sensor-foot" style="margin-top:8px">अभी डेटा लोड नहीं हुआ।</div>
+  </div>
+  <button class="sensor-connect" type="button" onclick="loadBLACKAIUserAnalytics()">📊 Analytics रिफ्रेश करें</button>
+
   <p class="sensor-foot">यह हिस्सा केवल अधिकृत Admin अकाउंट के लिए है। नई रिपोर्ट को मुफ्त में WhatsApp पर साझा करने के लिए नीचे दिया बटन दबाएँ; मैसेज भेजने से पहले WhatsApp में खुद पुष्टि करें।</p>
   <div id="blackaiNewReportNotice" class="contact" role="status" aria-live="polite" style="margin:10px 0;padding:10px;font-weight:bold">🔔 नई रिपोर्ट: 0</div>
   <button class="sensor-connect" type="button" onclick="markBLACKAIReportsSeen()">नई रिपोर्ट देख ली</button>
@@ -468,12 +477,15 @@ auth.onAuthStateChanged(async user=>{
  blackaiSessionUid=nextUid;
  if(typeof startBLACKAIReplyListener==="function") startBLACKAIReplyListener(user);
  if(!user && typeof startBLACKAIAdminLiveUpdates==="function") startBLACKAIAdminLiveUpdates(null);
+ if(!user&&blackaiAnalyticsTimer){clearInterval(blackaiAnalyticsTimer);blackaiAnalyticsTimer=null;}
  if(user && window.blackaiLoadHistory) window.blackaiLoadHistory();
  const gate=document.getElementById("authGate");
  const app=document.getElementById("appContent");
  gate.style.display=user?"none":"block";
  app.style.display=user?"block":"none";
  if(user){
+  startBLACKAIUserAnalytics(user);
+  if(user.uid===BLACKAI_SUPPORT_ADMIN_UID)loadBLACKAIUserAnalytics();
   loadTrustedContacts(user.uid);
   loadSOSHistory(user.uid);
   if(typeof loadBLACKAISupport==="function") loadBLACKAISupport();
@@ -1484,6 +1496,48 @@ async function markBLACKAIRepliesSeen(){
   localStorage.setItem(blackaiReplySeenKey(user.uid),JSON.stringify(seen));
   await loadBLACKAISupport();
  }catch(e){alert("जवाब पढ़े हुए सेव नहीं हो सके।");}
+}
+// BLACKAI basic user analytics: stores only UID and timestamps, not email or password.
+let blackaiAnalyticsTimer=null;
+async function updateBLACKAIUserHeartbeat(user){
+ if(!user)return;
+ const now=Date.now(),ref=liveDB.ref("userAnalytics/"+user.uid);
+ try{
+  await ref.transaction(current=>({
+   uid:user.uid,
+   createdAt:current&&Number(current.createdAt)?current.createdAt:now,
+   lastSeen:now
+  }));
+ }catch(e){console.warn("BLACKAI analytics heartbeat unavailable",e);}
+}
+function startBLACKAIUserAnalytics(user){
+ if(blackaiAnalyticsTimer){clearInterval(blackaiAnalyticsTimer);blackaiAnalyticsTimer=null;}
+ if(!user)return;
+ updateBLACKAIUserHeartbeat(user);
+ blackaiAnalyticsTimer=setInterval(()=>{
+  if(auth.currentUser&&auth.currentUser.uid===user.uid)updateBLACKAIUserHeartbeat(user);
+ },60000);
+}
+async function loadBLACKAIUserAnalytics(){
+ const user=auth.currentUser;
+ if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID)return;
+ const totalEl=document.getElementById("blackaiAnalyticsTotal");
+ const activeEl=document.getElementById("blackaiAnalyticsActive");
+ const updatedEl=document.getElementById("blackaiAnalyticsUpdated");
+ if(totalEl)totalEl.textContent="यूजर डेटा लोड हो रहा है…";
+ try{
+  const snap=await liveDB.ref("userAnalytics").once("value");
+  const users=snap.val()||{},entries=Object.values(users).filter(v=>v&&typeof v==="object");
+  const cutoff=Date.now()-120000;
+  const active=entries.filter(v=>Number(v.lastSeen)>=cutoff).length;
+  if(totalEl)totalEl.textContent="कुल यूजर: "+entries.length;
+  if(activeEl)activeEl.textContent="अभी Active: "+active;
+  if(updatedEl)updatedEl.textContent="आखिरी अपडेट: "+new Date().toLocaleString("hi-IN")+" | डेटा अपडेट के बाद लॉगिन करने वाले यूजर्स का है।";
+ }catch(e){
+  if(totalEl)totalEl.textContent="यूजर डेटा नहीं खुला।";
+  if(activeEl)activeEl.textContent="Firebase Rules में Admin read अनुमति जाँचें।";
+  if(updatedEl)updatedEl.textContent=String(e&&e.message||e);
+ }
 }
 // Admin report list auto-refresh listener (Firebase Realtime Database)
 let blackaiAdminTicketsListener=null;
