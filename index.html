@@ -6,7 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0b0b0f">
 <link rel="icon" type="image/svg+xml" href="blackai-logo.svg">
+<link rel="canonical" href="https://deepakchaudhary435.github.io/BLACKAI/">
 <meta name="description" content="BLACKAI एक personal safety assistant है। इसमें SOS सहायता, Trusted Contacts, Live Location Sharing, Emergency Tools और AI Assistant जैसी सुविधाएँ हैं।">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BLACKAI - Safety Command Center">
+<meta property="og:description" content="BLACKAI: SOS सहायता, Trusted Contacts, Live Location Sharing और AI Assistant।">
+<meta property="og:url" content="https://deepakchaudhary435.github.io/BLACKAI/">
 <title>BLACKAI - Safety Command Center</title>
 <style>
 *{box-sizing:border-box}
@@ -461,11 +467,11 @@ async function authAction(){
  error.textContent = "";
  if(!email || !password){error.textContent="ईमेल और पासवर्ड दोनों भरें।";return;}
  if(password.length < 6){error.textContent="पासवर्ड कम से कम 6 अक्षर का होना चाहिए।";return;}
+ if(authMode === "signup" && !name){error.textContent="कृपया अपना नाम लिखें।";return;}
  const submit = document.getElementById("authSubmit");
  submit.disabled = true;
  try{
   if(authMode === "signup"){
-   if(!name){error.textContent="कृपया अपना नाम लिखें।";return;}
    const result = await auth.createUserWithEmailAndPassword(email,password);
    await result.user.updateProfile({displayName:name});
    try{await result.user.sendEmailVerification();}catch(e){}
