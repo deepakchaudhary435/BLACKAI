@@ -1112,14 +1112,9 @@ function renderHomeProfile(){
  const phone=saved.phone||"Not added";
  panel.textContent="";
  const heading=document.createElement("strong");heading.textContent="Your Profile";
- const avatar=document.createElement("img");
- avatar.alt="Profile picture";avatar.style.cssText="width:76px;height:76px;border-radius:50%;object-fit:cover;display:block;margin:10px 0;border:2px solid #4b83bd;background:#202b3b";
- if(saved.photo)avatar.src=saved.photo;
- else if(user.photoURL)avatar.src=user.photoURL;
- else avatar.style.display="none";
  const nameLine=document.createElement("div");nameLine.textContent="Name: "+name;
  const phoneLine=document.createElement("div");phoneLine.textContent="Mobile: "+phone;
- panel.append(heading,avatar,nameLine,phoneLine);
+ panel.append(heading,nameLine,phoneLine);
 }
 function profile(){
  var user=auth.currentUser;
