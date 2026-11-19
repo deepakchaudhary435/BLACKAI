@@ -426,7 +426,6 @@ input{
 </script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-storage-compat.js"></script>
 <script>
 const firebaseConfig = {
  apiKey: "AIzaSyDlymowey_AyTDqmv_46CVITCYi1CpBmDc",
@@ -441,7 +440,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const liveDB = firebase.database();
-const profilePhotoStorage = firebase.storage();
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
  if(new URLSearchParams(location.search).has("live"))showLiveViewer();
 let authMode = "login";
@@ -1106,27 +1104,21 @@ function showContacts(){
 async function loadBLACKAIPrivateProfilePhoto(user,target){
  if(!user||!target||!auth.currentUser||auth.currentUser.uid!==user.uid)return;
  try{
-  const ref=profilePhotoStorage.ref("profilePhotos/"+user.uid+"/profile.jpg");
-  const bytes=await ref.getBytes(1024*1024);
+  const snap=await liveDB.ref("profilePhotos/"+user.uid).once("value");
   if(!auth.currentUser||auth.currentUser.uid!==user.uid||!target.isConnected)return;
-  const url=URL.createObjectURL(new Blob([bytes],{type:"image/jpeg"}));
+  const photo=snap.val()&&snap.val().photoDataUrl;
+  if(!photo||typeof photo!=="string"||!photo.startsWith("data:image/jpeg;base64,"))return;
   const img=document.createElement("img");
-  img.alt="Your private profile photo";
-  img.src=url;
+  img.alt="Your private profile photo";img.dataset.privateProfilePhoto="yes";img.src=photo;
   img.style.cssText="width:100px;height:100px;object-fit:cover;border-radius:50%;display:block;margin:10px 0;border:2px solid #4b83bd;background:#202b3b";
-  img.onload=()=>setTimeout(()=>URL.revokeObjectURL(url),60000);
-  img.onerror=()=>URL.revokeObjectURL(url);
   if(target.id==="homeProfile"){
    const existing=target.querySelector('img[alt="Profile picture"]');
    if(existing)existing.replaceWith(img);else target.insertBefore(img,target.children[1]||null);
   }else{
    const existing=target.querySelector('img[data-private-profile-photo="yes"]');
-   if(existing)existing.replaceWith(img);
-   else{img.dataset.privateProfilePhoto="yes";target.appendChild(img);}
+   if(existing)existing.replaceWith(img);else target.appendChild(img);
   }
- }catch(e){
-  if(e&&e.code!=="storage/object-not-found"&&e.code!=="storage/unauthorized")console.warn("Private profile photo load failed",e);
- }
+ }catch(e){if(e&&e.code!=="PERMISSION_DENIED")console.warn("Private profile photo load failed",e);}
 }
 function renderHomeProfile(){
  var user=auth.currentUser;
@@ -1930,21 +1922,17 @@ async function loadBLACKAIAdminTickets(){
    const canvas=document.createElement("canvas"),max=360,scale=Math.min(1,max/Math.max(img.width,img.height));
    canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
    canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-   const photo=canvas.toDataURL("image/jpeg",0.78);
-   const blob=await (await fetch(photo)).blob();
-   const photoRef=profilePhotoStorage.ref("profilePhotos/"+user.uid+"/profile.jpg");
-   await photoRef.put(blob,{contentType:"image/jpeg"});
-   const key="blackai_profile_"+user.uid,old=JSON.parse(localStorage.getItem(key)||"{}");
-   delete old.photo;
-   localStorage.setItem(key,JSON.stringify(old));
+   const photo=canvas.toDataURL("image/jpeg",0.62);
+   if(photo.length>140000){alert("फोटो का आकार कम नहीं हो पाया। कृपया छोटी फोटो चुनें।");return;}
+   await liveDB.ref("profilePhotos/"+user.uid).set({photoDataUrl:photo,updatedAt:firebase.database.ServerValue.TIMESTAMP});
    if(typeof renderHomeProfile==="function")renderHomeProfile();
    const summary=document.getElementById("blackaiProfileSummary");
-   if(summary){summary.textContent="आपकी प्रोफाइल फोटो सुरक्षित रूप से अपलोड हो गई।";loadBLACKAIPrivateProfilePhoto(user,summary);}
-   alert("प्रोफाइल फोटो आपके अकाउंट में सुरक्षित सेव हो गई। इसे सिर्फ आप देख सकते हैं।");
+   if(summary){summary.textContent="आपकी प्रोफाइल फोटो आपके अकाउंट में सेव हो गई।";loadBLACKAIPrivateProfilePhoto(user,summary);}
+   alert("प्रोफाइल फोटो आपके अकाउंट में सेव हो गई।");
   }catch(e){
    console.error("BLACKAI private profile photo upload error",e);
    const code=e&&e.code||"";
-   alert(code==="storage/unauthorized"?"Firebase Storage Rules अभी सेट नहीं हैं या अनुमति नहीं मिली।":"फोटो अपलोड नहीं हो पाई। इंटरनेट और Firebase Storage सेटिंग जांचें।");
+   alert(code==="PERMISSION_DENIED"?"Realtime Database Rules में profilePhotos की अनुमति जोड़नी होगी।":"फोटो सेव नहीं हो पाई। इंटरनेट और Database Rules जांचें।");
   }finally{savePhoto.disabled=false;savePhoto.textContent="📷 फोटो सेव करें";}
  });
  const cards=[
