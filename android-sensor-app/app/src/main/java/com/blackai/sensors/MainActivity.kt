@@ -75,11 +75,11 @@ class MainActivity : Activity() {
             setOnClickListener { exportHistory() }
         })
         layout.addView(Button(this).apply {
-            text = "Clear History"
+            text = "Delete History / इतिहास मिटाएँ"
             setOnClickListener { confirmClearHistory() }
         })
         layout.addView(TextView(this).apply {
-            text = "Backup से JSON फ़ाइल बनेगी। उसे Downloads में सुरक्षित रखें। ऐप uninstall करने के बाद दोबारा install करके Restore History से वही फ़ाइल चुनें। Backup/Restore केवल स्थानीय सेंसर लॉग के लिए है।"
+            text = "Backup से JSON फ़ाइल बनेगी। उसे Downloads में सुरक्षित रखें। ऐप uninstall करने के बाद दोबारा install करके Restore History से वही फ़ाइल चुनें। Delete History करने से ऐप का स्थानीय रिकॉर्ड मिटेगा; पहले बैकअप सुरक्षित कर लें।"
             textSize = 13f
             setPadding(0, 12, 0, 24)
         })
@@ -213,7 +213,7 @@ class MainActivity : Activity() {
     private fun confirmClearHistory() {
         AlertDialog.Builder(this)
             .setTitle("इतिहास मिटाएँ?")
-            .setMessage("इस ऐप में सेव पूरा स्थानीय सेंसर इतिहास मिट जाएगा। यह वापस नहीं मिलेगा।")
+            .setMessage("इस ऐप में सेव पूरा स्थानीय सेंसर इतिहास मिट जाएगा। यह वापस नहीं मिलेगा। पहले बैकअप सुरक्षित कर लें।")
             .setNegativeButton("रद्द करें", null)
             .setPositiveButton("इतिहास मिटाएँ") { _, _ ->
                 historyPrefs().edit().remove("signal_count").remove("last_signal")
