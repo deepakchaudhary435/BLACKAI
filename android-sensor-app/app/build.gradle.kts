@@ -11,8 +11,27 @@ android {
         applicationId = "com.blackai.sensors"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = System.getenv("BLACKAI_KEYSTORE_FILE")
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = System.getenv("BLACKAI_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("BLACKAI_KEY_ALIAS")
+                keyPassword = System.getenv("BLACKAI_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
     }
 
     compileOptions {
