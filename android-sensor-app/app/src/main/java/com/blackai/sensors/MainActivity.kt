@@ -9,9 +9,13 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.text.DateFormat
+import java.util.Date
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private lateinit var signalLog: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val layout = LinearLayout(this).apply {
@@ -23,7 +27,7 @@ class MainActivity : Activity() {
             textSize = 24f
         })
         layout.addView(TextView(this).apply {
-            text = "यह शुरुआती परीक्षण है। सेंसर केवल तेज झटके जैसे सीमित संकेत पहचानते हैं; वे अपहरण, यौन अपराध या किसी अपराध का पता नहीं लगा सकते। कोई पुलिस या संपर्क अलर्ट नहीं भेजा जाता।"
+            text = "यह शुरुआती परीक्षण है। सेंसर केवल तेज़ गति/झटके जैसा संकेत दर्ज कर सकता है; यह किसी अपराध, गिरने या आपातकाल की पुष्टि नहीं करता। कोई पुलिस या संपर्क अलर्ट नहीं भेजा जाता।"
             textSize = 16f
             setPadding(0, 24, 0, 24)
         })
@@ -45,7 +49,32 @@ class MainActivity : Activity() {
                 status.text = "Monitoring बंद है"
             }
         })
+        layout.addView(TextView(this).apply {
+            text = "स्थानीय सेंसर लॉग"
+            textSize = 20f
+            setPadding(0, 28, 0, 8)
+        })
+        signalLog = TextView(this).apply { textSize = 15f }
+        layout.addView(signalLog)
         setContentView(layout)
+        refreshSignalLog()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::signalLog.isInitialized) refreshSignalLog()
+    }
+
+    private fun refreshSignalLog() {
+        val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
+        val count = prefs.getInt("signal_count", 0)
+        val last = prefs.getString("last_signal", null)
+        val time = prefs.getLong("last_signal_time", 0L)
+        signalLog.text = if (last == null) {
+            "अभी तक कोई संभावित संकेत दर्ज नहीं हुआ।"
+        } else {
+            "कुल संभावित संकेत: $count\nआखिरी संकेत: $last\nसमय: ${DateFormat.getDateTimeInstance().format(Date(time))}\n\nये केवल सेंसर संकेत हैं; गलत संकेत संभव हैं।"
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
