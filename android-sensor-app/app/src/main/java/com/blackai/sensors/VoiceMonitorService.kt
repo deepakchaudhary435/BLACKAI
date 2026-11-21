@@ -12,16 +12,22 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.os.Bundle
 import android.os.SystemClock
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import java.util.Locale
 
 /**
- * Consent-based prototype. Uses on-device speech recognition only.
- * No audio is saved or transmitted by this app. This is not a validated distress detector.
+ * Consent-based experimental prototype. Android 10+ uses the installed speech-recognition
+ * provider; audio handling depends on that provider and may involve network processing.
+ * This is not a validated distress detector.
  */
 class VoiceMonitorService : Service(), RecognitionListener {
     private var recognizer: SpeechRecognizer? = null
     private var lastMatchAt = 0L
+    private var retryCount = 0
+    private val retryHandler = Handler(Looper.getMainLooper())
+    private val retryAction = Runnable { startListening() }
     private val channelId = "blackai_voice_monitor"
     private val notificationId = 7002
 
@@ -29,13 +35,19 @@ class VoiceMonitorService : Service(), RecognitionListener {
         super.onCreate()
         createChannel()
         startForeground(notificationId, notification("Voice monitoring चालू है। बंद करने के लिए BLACKAI खोलें।"))
-        if (Build.VERSION.SDK_INT < 31 || !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
-            updateNotification("इस फोन पर on-device speech recognition उपलब्ध नहीं है। Voice monitoring बंद है।")
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            updateNotification("इस फोन पर speech recognition सेवा उपलब्ध नहीं है। Voice monitoring बंद है।")
             stopSelf()
             return
         }
         try {
-            recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            recognizer = if (Build.VERSION.SDK_INT >= 31 &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } else {
+                // Android 10/11 fallback: use the device's installed recognition provider.
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }
             recognizer?.setRecognitionListener(this)
             startListening()
         } catch (e: Exception) {
@@ -52,6 +64,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         try {
             recognizer?.startListening(intent)
@@ -72,8 +85,10 @@ class VoiceMonitorService : Service(), RecognitionListener {
             val normalized = spoken.lowercase(Locale.ROOT)
             phrases.any { normalized.contains(it.lowercase(Locale.ROOT)) }
         }
+        retryCount = 0
         if (found != null) recordPossibleVoiceAlert(found)
-        startListening()
+        retryHandler.removeCallbacks(retryAction)
+        retryHandler.postDelayed(retryAction, 500L)
     }
 
     private fun recordPossibleVoiceAlert(spoken: String) {
@@ -104,14 +119,33 @@ class VoiceMonitorService : Service(), RecognitionListener {
             return
         }
         if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+            retryHandler.removeCallbacks(retryAction)
+            retryHandler.postDelayed(retryAction, 1500L)
             return
         }
-        // Recognition sessions may end naturally; restart while the user-enabled service remains active.
-        startListening()
+        // Retry transient/no-speech errors a few times; stop rather than spin forever.
+        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_NETWORK ||
+            error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
+            retryCount++
+            if (retryCount <= 3) {
+                retryHandler.removeCallbacks(retryAction)
+                retryHandler.postDelayed(retryAction, 1000L * retryCount)
+            } else {
+                updateNotification("Voice recognition रुक गई। BLACKAI खोलकर दोबारा शुरू करें।")
+                stopSelf()
+            }
+            return
+        }
+        updateNotification("Voice recognition में त्रुटि हुई। इसे दोबारा शुरू करें।")
+        stopSelf()
     }
 
     override fun onReadyForSpeech(params: Bundle?) {
-        updateNotification("Voice monitoring चालू — केवल on-device शब्द पहचान।")
+        retryCount = 0
+        updateNotification("Voice monitoring चालू — बोले गए शब्द पहचानने की कोशिश।")
     }
     override fun onBeginningOfSpeech() = Unit
     override fun onRmsChanged(rmsdB: Float) = Unit
@@ -142,6 +176,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
     }
 
     override fun onDestroy() {
+        retryHandler.removeCallbacksAndMessages(null)
         recognizer?.destroy()
         recognizer = null
         super.onDestroy()
