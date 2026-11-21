@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     private lateinit var signalLog: TextView
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
+    private val voicePermissionRequest = 61
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +54,34 @@ class MainActivity : Activity() {
             setOnClickListener {
                 stopService(Intent(this@MainActivity, MotionMonitorService::class.java))
                 status.text = "Monitoring बंद है"
+            }
+        })
+        layout.addView(TextView(this).apply {
+            text = "Voice Safety — प्रयोगात्मक"
+            textSize = 20f
+            setPadding(0, 28, 0, 8)
+        })
+        layout.addView(TextView(this).apply {
+            text = "यह सुविधा केवल समर्थित फोन पर ऑन-डिवाइस पहचान की कोशिश करेगी। यह अभी परिवार/पुलिस को संदेश या कॉल नहीं भेजती और रोने/चिल्लाने की विश्वसनीय पहचान नहीं करती।"
+            textSize = 14f
+            setPadding(0, 0, 0, 8)
+        })
+        layout.addView(Button(this).apply {
+            text = "मैं सहमत हूँ — Voice Detection शुरू करें"
+            setOnClickListener {
+                val permissions = if (Build.VERSION.SDK_INT >= 33)
+                    arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+                else arrayOf(Manifest.permission.RECORD_AUDIO)
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(permissions, voicePermissionRequest)
+                } else startVoiceMonitoring()
+            }
+        })
+        layout.addView(Button(this).apply {
+            text = "Voice Detection बंद करें"
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, VoiceMonitorService::class.java))
+                status.text = "Voice Detection बंद करने का अनुरोध भेजा गया।"
             }
         })
         layout.addView(TextView(this).apply {
@@ -247,7 +276,14 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
-        else status.text = "Notification अनुमति नहीं मिली; Monitoring शुरू नहीं हुई।"
+        else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
+        else if (requestCode == 41 || requestCode == voicePermissionRequest) status.text = "ज़रूरी अनुमति नहीं मिली; Monitoring शुरू नहीं हुई।"
+    }
+
+    private fun startVoiceMonitoring() {
+        val intent = Intent(this, VoiceMonitorService::class.java)
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+        status.text = "Voice Detection शुरू करने का अनुरोध भेजा गया।"
     }
 
     private fun startMonitoring() {
