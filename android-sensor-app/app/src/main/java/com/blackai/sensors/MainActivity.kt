@@ -2,6 +2,7 @@ package com.blackai.sensors
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -56,6 +57,19 @@ class MainActivity : Activity() {
         })
         signalLog = TextView(this).apply { textSize = 15f }
         layout.addView(signalLog)
+        layout.addView(Button(this).apply {
+            text = "Export History / साझा करें"
+            setOnClickListener { exportHistory() }
+        })
+        layout.addView(Button(this).apply {
+            text = "Clear History"
+            setOnClickListener { confirmClearHistory() }
+        })
+        layout.addView(TextView(this).apply {
+            text = "Export करने पर Android share menu खुलेगा; जानकारी तभी साझा होगी जब आप स्वयं कोई ऐप चुनेंगे। Clear करने से इस ऐप का स्थानीय सेंसर इतिहास मिटेगा।"
+            textSize = 13f
+            setPadding(0, 12, 0, 24)
+        })
         setContentView(layout)
         refreshSignalLog()
     }
@@ -65,13 +79,13 @@ class MainActivity : Activity() {
         if (::signalLog.isInitialized) refreshSignalLog()
     }
 
-    private fun refreshSignalLog() {
+    private fun buildHistoryText(): String {
         val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
         val count = prefs.getInt("signal_count", 0)
         val last = prefs.getString("last_signal", null)
         val time = prefs.getLong("last_signal_time", 0L)
         val history = prefs.getString("signal_history", "") ?: ""
-        val historyText = history.split("\n").filter { it.isNotBlank() }.joinToString("\n") { entry ->
+        val entries = history.split("\n").filter { it.isNotBlank() }.map { entry ->
             val parts = entry.split("|", limit = 2)
             if (parts.size == 2) {
                 val formattedTime = parts[0].toLongOrNull()?.let {
@@ -80,11 +94,45 @@ class MainActivity : Activity() {
                 "• $formattedTime — ${parts[1]}"
             } else entry
         }
-        signalLog.text = if (last == null) {
+        val recentText = if (entries.isEmpty()) "कोई पुराना रिकॉर्ड उपलब्ध नहीं।" else entries.joinToString("\n")
+        return if (last == null) {
             "अभी तक कोई संभावित संकेत दर्ज नहीं हुआ।"
         } else {
-            "कुल संभावित संकेत: $count\nआखिरी संकेत: $last\nसमय: ${DateFormat.getDateTimeInstance().format(Date(time))}\n\nहाल के संकेत (अधिकतम 10):\n$historyText\n\nये केवल सेंसर संकेत हैं; गलत संकेत संभव हैं।"
+            "कुल संभावित संकेत: $count\nआखिरी संकेत: $last\nसमय: ${DateFormat.getDateTimeInstance().format(Date(time))}\n\nहाल के संकेत (अधिकतम 10):\n$recentText\n\nये केवल सेंसर संकेत हैं; गलत संकेत संभव हैं।"
         }
+    }
+
+    private fun refreshSignalLog() {
+        signalLog.text = buildHistoryText()
+    }
+
+    private fun exportHistory() {
+        val text = "BLACKAI — स्थानीय सेंसर इतिहास\nसमय: ${DateFormat.getDateTimeInstance().format(Date())}\n\n${buildHistoryText()}\n\nनोट: ये केवल प्रयोगात्मक सेंसर संकेत हैं, किसी घटना या अपराध की पुष्टि नहीं।"
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "BLACKAI Sensor History")
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        startActivity(Intent.createChooser(shareIntent, "इतिहास साझा करने के लिए ऐप चुनें"))
+    }
+
+    private fun confirmClearHistory() {
+        AlertDialog.Builder(this)
+            .setTitle("इतिहास मिटाएँ?")
+            .setMessage("इस ऐप में सेव पूरा स्थानीय सेंसर इतिहास मिट जाएगा। यह वापस नहीं मिलेगा।")
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("इतिहास मिटाएँ") { _, _ ->
+                val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
+                prefs.edit()
+                    .remove("signal_count")
+                    .remove("last_signal")
+                    .remove("last_signal_time")
+                    .remove("signal_history")
+                    .apply()
+                refreshSignalLog()
+                status.text = "स्थानीय सेंसर इतिहास मिटा दिया गया। Monitoring की स्थिति नहीं बदली।"
+            }
+            .show()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
