@@ -117,9 +117,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun refreshSignalLog() {
-        signalLog.text = buildHistoryText()
-    }
+    private fun refreshSignalLog() { signalLog.text = buildHistoryText() }
 
     private fun createBackupFile() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -144,7 +142,7 @@ class MainActivity : Activity() {
             put("format", "BLACKAI_SENSOR_HISTORY")
             put("version", 1)
             put("signal_count", prefs.getInt("signal_count", 0))
-            put("last_signal", prefs.getString("last_signal", JSONObject.NULL))
+            put("last_signal", prefs.getString("last_signal", null) ?: JSONObject.NULL)
             put("last_signal_time", prefs.getLong("last_signal_time", 0L))
             put("signal_history", prefs.getString("signal_history", "") ?: "")
             put("backup_created_at", System.currentTimeMillis())
@@ -160,18 +158,14 @@ class MainActivity : Activity() {
             it.readText()
         } ?: throw IllegalStateException("बैकअप फ़ाइल नहीं पढ़ी जा सकी")
         val json = JSONObject(jsonText)
-        require(json.optString("format") == "BLACKAI_SENSOR_HISTORY") {
-            "यह BLACKAI का मान्य बैकअप नहीं है"
-        }
+        require(json.optString("format") == "BLACKAI_SENSOR_HISTORY") { "यह BLACKAI का मान्य बैकअप नहीं है" }
         require(json.optInt("version", -1) == 1) { "बैकअप वर्जन समर्थित नहीं है" }
-
         val count = json.getInt("signal_count")
         val lastValue = json.opt("last_signal")
         val last = if (lastValue == null || lastValue == JSONObject.NULL) null else lastValue.toString()
         val time = json.getLong("last_signal_time")
         val history = json.getString("signal_history")
         require(count >= 0 && time >= 0L) { "बैकअप डेटा सही नहीं है" }
-
         historyPrefs().edit()
             .putInt("signal_count", count)
             .putString("last_signal", last)
@@ -195,13 +189,11 @@ class MainActivity : Activity() {
                     .setMessage("इससे अभी ऐप में मौजूद स्थानीय हिस्ट्री चुने गए बैकअप से बदल जाएगी।")
                     .setNegativeButton("रद्द करें", null)
                     .setPositiveButton("Restore करें") { _, _ ->
-                        try {
-                            restoreBackup(uri)
-                        } catch (e: Exception) {
+                        try { restoreBackup(uri) }
+                        catch (e: Exception) {
                             Toast.makeText(this, "Restore नहीं हुआ: ${e.message ?: "फ़ाइल में समस्या"}", Toast.LENGTH_LONG).show()
                         }
-                    }
-                    .show()
+                    }.show()
             }
         } catch (e: Exception) {
             Toast.makeText(this, "काम पूरा नहीं हुआ: ${e.message ?: "फ़ाइल में समस्या"}", Toast.LENGTH_LONG).show()
@@ -224,16 +216,11 @@ class MainActivity : Activity() {
             .setMessage("इस ऐप में सेव पूरा स्थानीय सेंसर इतिहास मिट जाएगा। यह वापस नहीं मिलेगा।")
             .setNegativeButton("रद्द करें", null)
             .setPositiveButton("इतिहास मिटाएँ") { _, _ ->
-                historyPrefs().edit()
-                    .remove("signal_count")
-                    .remove("last_signal")
-                    .remove("last_signal_time")
-                    .remove("signal_history")
-                    .apply()
+                historyPrefs().edit().remove("signal_count").remove("last_signal")
+                    .remove("last_signal_time").remove("signal_history").apply()
                 refreshSignalLog()
                 status.text = "स्थानीय सेंसर इतिहास मिटा दिया गया। Monitoring की स्थिति नहीं बदली।"
-            }
-            .show()
+            }.show()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
