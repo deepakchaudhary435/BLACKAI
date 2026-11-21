@@ -38,10 +38,17 @@ class MotionMonitorService : Service(), SensorEventListener {
         val magnitude = sqrt(event.values[0] * event.values[0] +
             event.values[1] * event.values[1] + event.values[2] * event.values[2])
         val now = SystemClock.elapsedRealtime()
-        // Conservative prototype threshold only. This is not a validated fall or crime detector.
+        // Prototype signal only: threshold is not a validated fall, assault, or crime detector.
         if (magnitude > 25f && now - lastTrigger > 60_000L) {
             lastTrigger = now
-            updateNotification("तेज झटका महसूस हुआ। क्या आप सुरक्षित हैं? यह केवल एक संभावित संकेत है; कोई अलर्ट नहीं भेजा गया।")
+            val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
+            val count = prefs.getInt("signal_count", 0) + 1
+            prefs.edit()
+                .putInt("signal_count", count)
+                .putString("last_signal", "संभावित तेज़ झटका — ${String.format("%.1f", magnitude)} m/s²")
+                .putLong("last_signal_time", System.currentTimeMillis())
+                .apply()
+            updateNotification("संभावित तेज़ झटका दर्ज हुआ। कृपया स्वयं जाँचें कि आप सुरक्षित हैं। कोई संदेश या अलर्ट नहीं भेजा गया।")
         }
     }
 
