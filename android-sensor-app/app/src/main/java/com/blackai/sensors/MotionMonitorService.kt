@@ -43,10 +43,16 @@ class MotionMonitorService : Service(), SensorEventListener {
             lastTrigger = now
             val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
             val count = prefs.getInt("signal_count", 0) + 1
+            val signalText = "संभावित तेज़ झटका — ${String.format("%.1f", magnitude)} m/s²"
+            val timestamp = System.currentTimeMillis()
+            val history = prefs.getString("signal_history", "") ?: ""
+            val newEntry = "$timestamp|$signalText"
+            val updatedHistory = (listOf(newEntry) + history.split("\\n").filter { it.isNotBlank() }).take(10).joinToString("\\n")
             prefs.edit()
                 .putInt("signal_count", count)
-                .putString("last_signal", "संभावित तेज़ झटका — ${String.format("%.1f", magnitude)} m/s²")
-                .putLong("last_signal_time", System.currentTimeMillis())
+                .putString("last_signal", signalText)
+                .putLong("last_signal_time", timestamp)
+                .putString("signal_history", updatedHistory)
                 .apply()
             updateNotification("संभावित तेज़ झटका दर्ज हुआ। कृपया स्वयं जाँचें कि आप सुरक्षित हैं। कोई संदेश या अलर्ट नहीं भेजा गया।")
         }
