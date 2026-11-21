@@ -70,10 +70,20 @@ class MainActivity : Activity() {
         val count = prefs.getInt("signal_count", 0)
         val last = prefs.getString("last_signal", null)
         val time = prefs.getLong("last_signal_time", 0L)
+        val history = prefs.getString("signal_history", "") ?: ""
+        val historyText = history.split("\n").filter { it.isNotBlank() }.joinToString("\n") { entry ->
+            val parts = entry.split("|", limit = 2)
+            if (parts.size == 2) {
+                val formattedTime = parts[0].toLongOrNull()?.let {
+                    DateFormat.getDateTimeInstance().format(Date(it))
+                } ?: "समय उपलब्ध नहीं"
+                "• $formattedTime — ${parts[1]}"
+            } else entry
+        }
         signalLog.text = if (last == null) {
             "अभी तक कोई संभावित संकेत दर्ज नहीं हुआ।"
         } else {
-            "कुल संभावित संकेत: $count\nआखिरी संकेत: $last\nसमय: ${DateFormat.getDateTimeInstance().format(Date(time))}\n\nये केवल सेंसर संकेत हैं; गलत संकेत संभव हैं।"
+            "कुल संभावित संकेत: $count\nआखिरी संकेत: $last\nसमय: ${DateFormat.getDateTimeInstance().format(Date(time))}\n\nहाल के संकेत (अधिकतम 10):\n$historyText\n\nये केवल सेंसर संकेत हैं; गलत संकेत संभव हैं।"
         }
     }
 
