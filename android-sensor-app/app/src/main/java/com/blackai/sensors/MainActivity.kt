@@ -85,6 +85,7 @@ class MainActivity : Activity() {
         })
         setContentView(layout)
         refreshSignalLog()
+        checkBackupReminder()
     }
 
     override fun onResume() {
@@ -136,6 +137,24 @@ class MainActivity : Activity() {
         startActivityForResult(intent, restoreBackupRequest)
     }
 
+    private fun checkBackupReminder() {
+        val prefs = historyPrefs()
+        val now = System.currentTimeMillis()
+        val lastBackup = prefs.getLong("last_backup_at", 0L)
+        val snoozedUntil = prefs.getLong("backup_reminder_snoozed_until", 0L)
+        val sevenDays = 7L * 24L * 60L * 60L * 1000L
+        if (now - lastBackup >= sevenDays && now >= snoozedUntil) {
+            AlertDialog.Builder(this)
+                .setTitle("BLACKAI बैकअप रिमाइंडर")
+                .setMessage("अपनी स्थानीय सेंसर हिस्ट्री का बैकअप Downloads में सुरक्षित रखें। ऐप uninstall करने पर स्थानीय हिस्ट्री मिट सकती है।")
+                .setNegativeButton("बाद में") { _, _ ->
+                    prefs.edit().putLong("backup_reminder_snoozed_until", now + 24L * 60L * 60L * 1000L).apply()
+                }
+                .setPositiveButton("अभी बैकअप बनाएँ") { _, _ -> createBackupFile() }
+                .show()
+        }
+    }
+
     private fun writeBackup(uri: Uri) {
         val prefs = historyPrefs()
         val json = JSONObject().apply {
@@ -150,6 +169,8 @@ class MainActivity : Activity() {
         contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use {
             it.write(json.toString(2))
         } ?: throw IllegalStateException("फ़ाइल नहीं खुल सकी")
+        historyPrefs().edit().putLong("last_backup_at", System.currentTimeMillis()).apply()
+        historyPrefs().edit().remove("backup_reminder_snoozed_until").apply()
         Toast.makeText(this, "BLACKAI हिस्ट्री बैकअप सेव हो गया।", Toast.LENGTH_LONG).show()
     }
 
