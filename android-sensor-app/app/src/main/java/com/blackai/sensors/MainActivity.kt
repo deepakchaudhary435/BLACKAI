@@ -6,6 +6,10 @@ import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.view.View
+import android.view.ViewGroup
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -147,6 +151,7 @@ class MainActivity : Activity() {
             addView(layout)
         }
         setContentView(scrollView)
+        applyPremiumTheme(scrollView)
         refreshSignalLog()
         refreshDashboard()
         checkBackupReminder()
@@ -162,6 +167,49 @@ class MainActivity : Activity() {
     override fun onPause() {
         dashboardHandler.removeCallbacks(dashboardRefreshTask)
         super.onPause()
+    }
+
+
+    /**
+     * Premium BLACKAI dark dashboard styling. This changes presentation only;
+     * existing consent, monitoring, history, backup and restore actions remain intact.
+     */
+    private fun applyPremiumTheme(view: View) {
+        val navy = Color.rgb(9, 16, 31)
+        val panel = Color.rgb(19, 31, 51)
+        val cyan = Color.rgb(74, 220, 218)
+        val white = Color.rgb(239, 245, 250)
+
+        if (view is ScrollView) view.setBackgroundColor(navy)
+        if (view is LinearLayout) {
+            view.setBackgroundColor(navy)
+            view.setPadding(28, 40, 28, 36)
+        }
+        if (view is Button) {
+            view.setTextColor(white)
+            view.textSize = 15f
+            view.isAllCaps = false
+            view.minHeight = 54
+            view.setPadding(22, 14, 22, 14)
+            view.background = GradientDrawable().apply {
+                setColor(panel)
+                cornerRadius = 24f
+                setStroke(2, cyan)
+            }
+        } else if (view is TextView) {
+            view.setTextColor(white)
+            if (view.textSize >= 20f) {
+                view.setTextColor(cyan)
+                view.setPadding(0, 22, 0, 10)
+            } else {
+                view.setLineSpacing(3f, 1.08f)
+            }
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                applyPremiumTheme(view.getChildAt(index))
+            }
+        }
     }
 
     private fun historyPrefs() = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
