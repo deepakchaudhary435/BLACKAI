@@ -112,18 +112,33 @@ class VoiceMonitorService : Service(), RecognitionListener {
         updateNotification("संभावित मदद की पुकार पहचानी गई। यह पुष्टि नहीं है; सुरक्षित हों तो सहायता लें। कोई संदेश/कॉल नहीं भेजा गया।")
     }
 
+    private fun errorLabel(error: Int): String = when (error) {
+        SpeechRecognizer.ERROR_AUDIO -> "माइक्रोफोन ऑडियो समस्या"
+        SpeechRecognizer.ERROR_CLIENT -> "ऐप/recognizer client समस्या"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "माइक्रोफोन अनुमति नहीं"
+        SpeechRecognizer.ERROR_NETWORK -> "नेटवर्क समस्या"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "नेटवर्क समय समाप्त"
+        SpeechRecognizer.ERROR_NO_MATCH -> "आवाज़/शब्द पहचान नहीं पाए"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "पहचान सेवा व्यस्त"
+        SpeechRecognizer.ERROR_SERVER -> "Speech सेवा की सर्वर समस्या"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "कोई बोलना पहचाना नहीं गया"
+        SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "Speech सेवा से कनेक्शन टूटा"
+        else -> "अन्य Speech Recognition त्रुटि"
+    }
+
     override fun onError(error: Int) {
+        val detail = "Voice त्रुटि कोड $error: " + errorLabel(error)
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-            updateNotification("माइक्रोफोन अनुमति नहीं है। Voice monitoring बंद है।")
+            updateNotification("$detail। Voice monitoring बंद है।")
             stopSelf()
             return
         }
         if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+            updateNotification("$detail। दोबारा कोशिश हो रही है।")
             retryHandler.removeCallbacks(retryAction)
             retryHandler.postDelayed(retryAction, 1500L)
             return
         }
-        // Retry transient/no-speech errors a few times; stop rather than spin forever.
         if (error == SpeechRecognizer.ERROR_NO_MATCH ||
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
             error == SpeechRecognizer.ERROR_NETWORK ||
@@ -131,15 +146,16 @@ class VoiceMonitorService : Service(), RecognitionListener {
             error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
             retryCount++
             if (retryCount <= 3) {
+                updateNotification("$detail। पुनः प्रयास $retryCount/3।")
                 retryHandler.removeCallbacks(retryAction)
                 retryHandler.postDelayed(retryAction, 1000L * retryCount)
             } else {
-                updateNotification("Voice recognition रुक गई। BLACKAI खोलकर दोबारा शुरू करें।")
+                updateNotification("$detail। 3 प्रयासों के बाद Voice recognition रुक गई।")
                 stopSelf()
             }
             return
         }
-        updateNotification("Voice recognition में त्रुटि हुई। इसे दोबारा शुरू करें।")
+        updateNotification("$detail। Voice monitoring बंद है।")
         stopSelf()
     }
 
