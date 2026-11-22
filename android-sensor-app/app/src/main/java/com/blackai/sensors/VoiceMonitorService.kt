@@ -14,7 +14,6 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
-import android.widget.Toast
 import java.util.Locale
 
 /**
@@ -59,12 +58,11 @@ class VoiceMonitorService : Service(), RecognitionListener {
     private fun startListening() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+            // Do not force hi-IN or offline mode: let the installed provider choose a
+            // supported default language/mode. Recognition may use network processing.
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         try {
             recognizer?.startListening(intent)
