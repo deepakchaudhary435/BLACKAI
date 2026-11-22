@@ -26,6 +26,14 @@ import android.widget.Toast
 import org.json.JSONObject
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.ai.Firebase
+import com.google.firebase.ai.GenerativeBackend
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
@@ -39,6 +47,7 @@ class MainActivity : Activity() {
     private val voicePermissionRequest = 61
     private val locationPermissionRequest = 71
     private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
+    private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val dashboardHandler = Handler(Looper.getMainLooper())
     private val dashboardRefreshTask = object : Runnable {
         override fun run() {
@@ -142,6 +151,10 @@ class MainActivity : Activity() {
             text = "BLACKAI सहायता केंद्र — समस्या भेजें"
             setOnClickListener { showSupportCenter() }
         })
+        layout.addView(Button(this).apply {
+            text = "BLACKAI AI Assistant — Chat और History"
+            setOnClickListener { showAiChatCenter() }
+        })
         layout.addView(TextView(this).apply {
             text = "BLACKAI — लोकेशन साझा करें"
             textSize = 20f
@@ -237,6 +250,11 @@ class MainActivity : Activity() {
     override fun onPause() {
         dashboardHandler.removeCallbacks(dashboardRefreshTask)
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        aiScope.cancel()
+        super.onDestroy()
     }
 
 
@@ -427,6 +445,97 @@ class MainActivity : Activity() {
             }.show()
     }
 
+
+
+    private fun showAiChatCenter() {
+        val user = firebaseAuth.currentUser
+        if (user == null) {
+            AlertDialog.Builder(this).setTitle("पहले Login करें")
+                .setMessage("AI Chat और चैट हिस्ट्री इस्तेमाल करने के लिए पहले BLACKAI में Login करें।")
+                .setPositiveButton("ठीक है", null).show()
+            return
+        }
+        val prefs = getSharedPreferences("blackai_ai_chat", MODE_PRIVATE)
+        val historyKey = "history_" + user.uid
+        val history = org.json.JSONArray(prefs.getString(historyKey, "[]") ?: "[]")
+        val messages = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 12, 12, 12) }
+        val scroll = ScrollView(this).apply { addView(messages) }
+        val question = android.widget.EditText(this).apply {
+            hint = "BLACKAI से कुछ पूछें…"; minLines = 2; maxLines = 4
+            gravity = android.view.Gravity.TOP
+        }
+        val statusText = TextView(this).apply { text = "AI जवाब देने के लिए तैयार है। इंटरनेट आवश्यक है।" }
+        fun addMessage(who: String, body: String) {
+            messages.addView(TextView(this).apply {
+                text = who + ": " + body
+                textSize = 15f
+                setPadding(8, 8, 8, 8)
+            })
+        }
+        for (i in 0 until history.length()) {
+            val item = history.optJSONObject(i) ?: continue
+            addMessage("आप", item.optString("q"))
+            addMessage("BLACKAI", item.optString("a"))
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 8, 24, 0)
+            addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(question)
+            addView(statusText)
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("BLACKAI AI Assistant")
+            .setView(panel).setNegativeButton("बंद करें", null)
+            .setNeutralButton("History खोजें", null).setPositiveButton("भेजें", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val prompt = question.text.toString().trim()
+                if (prompt.isBlank()) { question.error = "पहले अपना सवाल लिखें"; return@setOnClickListener }
+                if (prompt.length > 4000) { question.error = "सवाल 4000 अक्षरों से छोटा रखें"; return@setOnClickListener }
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                statusText.text = "BLACKAI जवाब तैयार कर रहा है…"
+                aiScope.launch {
+                    try {
+                        val model = Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel("gemini-2.5-flash")
+                        val prior = StringBuilder("आप BLACKAI के सहायक हैं। उपयोगकर्ता की भाषा में सरल, सुरक्षित और तथ्यात्मक जवाब दें। आपातकाल में स्थानीय आपात सेवाओं से संपर्क करने की सलाह दें।\n")
+                        val start = maxOf(0, history.length() - 6)
+                        for (index in start until history.length()) {
+                            val item = history.optJSONObject(index) ?: continue
+                            prior.append("User: ").append(item.optString("q")).append("\nAssistant: ").append(item.optString("a")).append("\n")
+                        }
+                        prior.append("User: ").append(prompt)
+                        val answer = withContext(Dispatchers.IO) { model.generateContent(prior.toString()).text ?: "जवाब उपलब्ध नहीं हुआ।" }
+                        addMessage("आप", prompt)
+                        addMessage("BLACKAI", answer)
+                        history.put(JSONObject().put("q", prompt).put("a", answer).put("ts", System.currentTimeMillis()))
+                        while (history.length() > 30) history.remove(0)
+                        prefs.edit().putString(historyKey, history.toString()).apply()
+                        question.setText("")
+                        statusText.text = "जवाब तैयार है। चैट फोन में सेव हुई।"
+                        scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+                    } catch (_: Exception) {
+                        statusText.text = "AI जवाब नहीं मिल सका। इंटरनेट, Firebase AI सेटअप और API अनुमति जाँचें।"
+                    } finally {
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                    }
+                }
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                val search = android.widget.EditText(this).apply { hint = "चैट में शब्द खोजें" }
+                AlertDialog.Builder(this).setTitle("चैट History खोजें").setView(search)
+                    .setPositiveButton("खोजें") { _, _ ->
+                        val term = search.text.toString().trim()
+                        val found = (0 until history.length()).mapNotNull { history.optJSONObject(it) }
+                            .filter { it.optString("q").contains(term, true) || it.optString("a").contains(term, true) }
+                        val result = found.joinToString("\n\n") { "आप: " + it.optString("q") + "\nBLACKAI: " + it.optString("a") }
+                        AlertDialog.Builder(this).setTitle("खोज परिणाम")
+                            .setMessage(if (result.isBlank()) "कोई मिलती-जुलती चैट नहीं मिली।" else result.take(12000))
+                            .setPositiveButton("ठीक है", null).show()
+                    }.setNegativeButton("रद्द करें", null).show()
+            }
+        }
+        dialog.show()
+    }
 
     private fun showSupportCenter() {
         val user = firebaseAuth.currentUser
