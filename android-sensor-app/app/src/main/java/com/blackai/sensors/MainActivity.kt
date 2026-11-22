@@ -514,8 +514,11 @@ class MainActivity : Activity() {
                         question.setText("")
                         statusText.text = "जवाब तैयार है। चैट फोन में सेव हुई।"
                         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
-                    } catch (_: Exception) {
-                        statusText.text = "AI जवाब नहीं मिल सका। इंटरनेट, Firebase AI सेटअप और API अनुमति जाँचें।"
+                    } catch (e: Exception) {
+                        val detail = (e.localizedMessage ?: e.javaClass.simpleName)
+                            .replace(Regex("\\s+"), " ")
+                            .take(240)
+                        statusText.text = "AI जवाब नहीं मिल सका। कारण: $detail"
                     } finally {
                         dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
                     }
