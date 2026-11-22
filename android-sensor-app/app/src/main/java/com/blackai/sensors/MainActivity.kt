@@ -386,7 +386,7 @@ class MainActivity : Activity() {
             "sa-IN", "sat-IN", "sd-IN", "ta-IN", "te-IN", "ur-IN"
         )
         val prefs = historyPrefs()
-        val selected = tags.indexOf(prefs.getString("voice_language_tag", "hi-IN")).coerceAtLeast(0)
+        val selected = tags.indexOf(prefs.getString("voice_language_tag", "hi-IN") ?: "hi-IN").coerceAtLeast(0)
         AlertDialog.Builder(this)
             .setTitle("Voice पहचान की भाषा चुनें")
             .setSingleChoiceItems(names, selected) { dialog, which ->
