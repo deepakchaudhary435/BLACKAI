@@ -53,5 +53,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.firebase:firebase-ai")
+    // Debug-only testing support; never ship this debug-provider configuration in a production release.
+    implementation("com.google.firebase:firebase-appcheck-debug")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }
