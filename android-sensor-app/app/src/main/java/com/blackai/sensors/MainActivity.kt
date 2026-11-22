@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
@@ -112,7 +113,11 @@ class MainActivity : Activity() {
             textSize = 13f
             setPadding(0, 12, 0, 24)
         })
-        setContentView(layout)
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = true
+            addView(layout)
+        }
+        setContentView(scrollView)
         refreshSignalLog()
         checkBackupReminder()
     }
