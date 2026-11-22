@@ -26,7 +26,7 @@ import android.widget.Toast
 import org.json.JSONObject
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.ai.Firebase
+import com.google.firebase.Firebase
 import com.google.firebase.ai.GenerativeBackend
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -496,7 +496,7 @@ class MainActivity : Activity() {
                 statusText.text = "BLACKAI जवाब तैयार कर रहा है…"
                 aiScope.launch {
                     try {
-                        val model = Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel("gemini-2.5-flash")
+                        val model = Firebase.ai(backend = GenerativeBackend.googleAI()).generativeModel("gemini-4-hydrogen")
                         val prior = StringBuilder("आप BLACKAI के सहायक हैं। उपयोगकर्ता की भाषा में सरल, सुरक्षित और तथ्यात्मक जवाब दें। आपातकाल में स्थानीय आपात सेवाओं से संपर्क करने की सलाह दें।\n")
                         val start = maxOf(0, history.length() - 6)
                         for (index in start until history.length()) {
