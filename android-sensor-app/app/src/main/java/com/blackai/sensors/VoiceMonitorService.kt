@@ -138,15 +138,22 @@ class VoiceMonitorService : Service(), RecognitionListener {
             return
         }
         if (error == SpeechRecognizer.ERROR_NO_MATCH ||
-            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
-            error == SpeechRecognizer.ERROR_NETWORK ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+            // No recognized words is common during quiet periods. Keep the
+            // user-started foreground listener available and retry after a pause.
+            updateNotification("कोई शब्द पहचान में नहीं आया। Voice monitoring फिर सुनने की कोशिश करेगी।")
+            retryHandler.removeCallbacks(retryAction)
+            retryHandler.postDelayed(retryAction, 1500L)
+            return
+        }
+        if (error == SpeechRecognizer.ERROR_NETWORK ||
             error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
             error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
             retryCount++
             if (retryCount <= 3) {
                 updateNotification("$detail। पुनः प्रयास $retryCount/3।")
                 retryHandler.removeCallbacks(retryAction)
-                retryHandler.postDelayed(retryAction, 1000L * retryCount)
+                retryHandler.postDelayed(retryAction, 2000L * retryCount)
             } else {
                 updateNotification("$detail। 3 प्रयासों के बाद Voice recognition रुक गई।")
                 stopSelf()
