@@ -90,7 +90,13 @@ class VoiceMonitorService : Service(), RecognitionListener {
             phrases.any { normalized.contains(it.lowercase(Locale.ROOT)) }
         }
         retryCount = 0
-        if (found != null) recordPossibleVoiceAlert(found)
+        if (found != null) {
+            recordPossibleVoiceAlert(found)
+        } else if (matches.isNotEmpty()) {
+            // Privacy-preserving diagnostic: report that text alternatives arrived,
+            // without displaying or storing the words spoken in the environment.
+            updateNotification("Speech recognition से ${matches.size} text विकल्प मिले, लेकिन कोई मदद-संबंधी phrase match नहीं हुआ।")
+        }
         retryHandler.removeCallbacks(retryAction)
         retryHandler.postDelayed(retryAction, 500L)
     }
@@ -147,7 +153,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
             // No recognized words is common during quiet periods. Keep the
             // user-started foreground listener available and retry after a pause.
-            updateNotification("कोई शब्द पहचान में नहीं आया। Voice monitoring फिर सुनने की कोशिश करेगी।")
+            updateNotification("${detail}। Voice monitoring फिर सुनने की कोशिश करेगी।")
             retryHandler.removeCallbacks(retryAction)
             retryHandler.postDelayed(retryAction, 1500L)
             return
