@@ -26,6 +26,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
     private var recognizer: SpeechRecognizer? = null
     private var lastMatchAt = 0L
     private var retryCount = 0
+    private var providerLabel = "system default (not reported)"
     private val retryHandler = Handler(Looper.getMainLooper())
     private val retryAction = Runnable { startListening() }
     private val channelId = "blackai_voice_monitor"
@@ -34,6 +35,10 @@ class VoiceMonitorService : Service(), RecognitionListener {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        providerLabel = Settings.Secure.getString(contentResolver, "voice_recognition_service")
+            ?.substringBefore("/")
+            ?.takeIf { it.isNotBlank() }
+            ?: "system default (not reported)"
         startForeground(notificationId, notification("Voice monitoring चालू है। बंद करने के लिए BLACKAI खोलें।"))
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             updateNotification("इस फोन पर speech recognition सेवा उपलब्ध नहीं है। Voice monitoring बंद है।")
@@ -49,10 +54,6 @@ class VoiceMonitorService : Service(), RecognitionListener {
                 SpeechRecognizer.createSpeechRecognizer(this)
             }
             recognizer?.setRecognitionListener(this)
-            val provider = Settings.Secure.getString(contentResolver, "voice_recognition_service")
-                ?.substringBefore("/")
-                ?: "system default"
-            updateNotification("Speech provider: $provider")
             startListening()
         } catch (e: Exception) {
             updateNotification("Voice recognition शुरू नहीं हो सकी।")
@@ -190,8 +191,10 @@ class VoiceMonitorService : Service(), RecognitionListener {
     private fun notification(message: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, channelId)
                       else Notification.Builder(this)
+        val displayMessage = "$message\nSpeech provider: $providerLabel"
         return builder.setContentTitle("BLACKAI Voice Safety")
-            .setContentText(message)
+            .setContentText(displayMessage)
+            .setStyle(Notification.BigTextStyle().bigText(displayMessage))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .build()
