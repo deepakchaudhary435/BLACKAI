@@ -27,6 +27,8 @@ import org.json.JSONObject
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.Firebase
+import com.google.firebase.initialize
+import com.google.firebase.appcheck.appCheck
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
