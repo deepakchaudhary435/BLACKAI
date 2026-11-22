@@ -24,6 +24,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var signalLog: TextView
     private lateinit var dashboard: TextView
+    private lateinit var voiceLanguageButton: Button
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
@@ -89,6 +90,11 @@ class MainActivity : Activity() {
             textSize = 14f
             setPadding(0, 0, 0, 8)
         })
+        voiceLanguageButton = Button(this).apply {
+            text = "Voice भाषा चुनें: " + currentVoiceLanguageName()
+            setOnClickListener { chooseVoiceLanguage() }
+        }
+        layout.addView(voiceLanguageButton)
         layout.addView(Button(this).apply {
             text = "मैं सहमत हूँ — Voice Detection शुरू करें"
             setOnClickListener {
@@ -360,6 +366,47 @@ class MainActivity : Activity() {
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
         else if (requestCode == 41 || requestCode == voicePermissionRequest) status.text = "ज़रूरी अनुमति नहीं मिली; Monitoring शुरू नहीं हुई।"
+    }
+
+    private fun currentVoiceLanguageName(): String =
+        historyPrefs().getString("voice_language_name", "हिन्दी") ?: "हिन्दी"
+
+    private fun chooseVoiceLanguage() {
+        val names = arrayOf(
+            "অসমীয়া (Assamese)", "বাংলা (Bengali)", "बड़ो (Bodo)", "डोगरी (Dogri)",
+            "ગુજરાતી (Gujarati)", "हिन्दी (Hindi)", "ಕನ್ನಡ (Kannada)", "कॉशुर/کٲشُر (Kashmiri)",
+            "कोंकणी (Konkani)", "मैथिली (Maithili)", "മലയാളം (Malayalam)", "ꯃꯤꯇꯩꯂꯣꯟ (Manipuri)",
+            "मराठी (Marathi)", "नेपाली (Nepali)", "ଓଡ଼ିଆ (Odia)", "ਪੰਜਾਬੀ (Punjabi)",
+            "संस्कृतम् (Sanskrit)", "ᱥᱟᱱᱛᱟᱲᱤ (Santali)", "سنڌي (Sindhi)", "தமிழ் (Tamil)",
+            "తెలుగు (Telugu)", "اردو (Urdu)"
+        )
+        val tags = arrayOf(
+            "as-IN", "bn-IN", "brx-IN", "doi-IN", "gu-IN", "hi-IN", "kn-IN", "ks-IN",
+            "kok-IN", "mai-IN", "ml-IN", "mni-IN", "mr-IN", "ne-IN", "or-IN", "pa-IN",
+            "sa-IN", "sat-IN", "sd-IN", "ta-IN", "te-IN", "ur-IN"
+        )
+        val prefs = historyPrefs()
+        val selected = tags.indexOf(prefs.getString("voice_language_tag", "hi-IN")).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Voice पहचान की भाषा चुनें")
+            .setSingleChoiceItems(names, selected) { dialog, which ->
+                prefs.edit()
+                    .putString("voice_language_tag", tags[which])
+                    .putString("voice_language_name", names[which])
+                    .apply()
+                voiceLanguageButton.text = "Voice भाषा चुनें: " + names[which]
+                val running = (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
+                    .getRunningServices(Int.MAX_VALUE)
+                    .any { it.service.className == VoiceMonitorService::class.java.name }
+                dialog.dismiss()
+                if (running) {
+                    stopService(Intent(this, VoiceMonitorService::class.java))
+                    startVoiceMonitoring()
+                }
+                Toast.makeText(this, "चुनी गई भाषा: " + names[which] + "। Provider समर्थन पर निर्भर करेगा।", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("रद्द करें", null)
+            .show()
     }
 
     private fun startVoiceMonitoring() {
