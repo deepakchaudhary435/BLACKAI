@@ -27,6 +27,8 @@ class VoiceMonitorService : Service(), RecognitionListener {
     private var lastMatchAt = 0L
     private var retryCount = 0
     private var providerLabel = "system default (not reported)"
+    private var selectedLanguageTag = "hi-IN"
+    private var selectedLanguageName = "हिन्दी"
     private val retryHandler = Handler(Looper.getMainLooper())
     private val retryAction = Runnable { startListening() }
     private val channelId = "blackai_voice_monitor"
@@ -39,7 +41,10 @@ class VoiceMonitorService : Service(), RecognitionListener {
             ?.substringBefore("/")
             ?.takeIf { it.isNotBlank() }
             ?: "system default (not reported)"
-        startForeground(notificationId, notification("Voice monitoring चालू है। बंद करने के लिए BLACKAI खोलें।"))
+        val languagePrefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
+        selectedLanguageTag = languagePrefs.getString("voice_language_tag", "hi-IN") ?: "hi-IN"
+        selectedLanguageName = languagePrefs.getString("voice_language_name", "हिन्दी") ?: "हिन्दी"
+        startForeground(notificationId, notification("Voice monitoring चालू है। चुनी गई भाषा: $selectedLanguageName। बंद करने के लिए BLACKAI खोलें।"))
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             updateNotification("इस फोन पर speech recognition सेवा उपलब्ध नहीं है। Voice monitoring बंद है।")
             stopSelf()
@@ -64,8 +69,9 @@ class VoiceMonitorService : Service(), RecognitionListener {
     private fun startListening() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            // Do not force hi-IN or offline mode: let the installed provider choose a
-            // supported default language/mode. Recognition may use network processing.
+            // Ask the installed provider to recognize the user's selected language.
+            // Android 11 providers may not support every locale; this is best-effort.
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, selectedLanguageTag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
@@ -80,11 +86,31 @@ class VoiceMonitorService : Service(), RecognitionListener {
 
     override fun onResults(results: Bundle?) {
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-        val phrases = listOf(
-            "help", "बचाओ", "बचाओ मुझे", "मदद करो", "मदद चाहिए",
-            "मेरा अपहरण", "किडनैप", "kidnap", "मुझे छोड़ दो",
-            "पुलिस बुलाओ", "मुझे बचाओ"
+        val phrasesByLanguage = mapOf(
+            "as-IN" to listOf("সহায়", "বচাও", "মোক বচাও", "help"),
+            "bn-IN" to listOf("বাঁচাও", "আমাকে বাঁচাও", "সাহায্য করো", "সাহায্য চাই", "help"),
+            "brx-IN" to listOf("help", "बचाओ"),
+            "doi-IN" to listOf("बचाओ", "मेरी मदद करो", "help"),
+            "gu-IN" to listOf("બચાવો", "મને બચાવો", "મદદ કરો", "મદદ જોઈએ", "help"),
+            "hi-IN" to listOf("बचाओ", "बचाओ मुझे", "मदद करो", "मदद चाहिए", "मुझे बचाओ", "पुलिस बुलाओ", "help", "kidnap"),
+            "kn-IN" to listOf("ಬಚಾವ್", "ನನ್ನನ್ನು ಕಾಪಾಡಿ", "ಸಹಾಯ ಮಾಡಿ", "ಸಹಾಯ ಬೇಕು", "help"),
+            "ks-IN" to listOf("مدد", "بچاؤ", "مےٚ بچاو", "help"),
+            "kok-IN" to listOf("वाचय", "म्हाका वाचय", "मदत कर", "help"),
+            "mai-IN" to listOf("बचाउ", "हमरा बचाउ", "मदद करू", "help"),
+            "ml-IN" to listOf("രക്ഷിക്കൂ", "എന്നെ രക്ഷിക്കൂ", "സഹായിക്കൂ", "സഹായം വേണം", "help"),
+            "mni-IN" to listOf("ꯑꯄꯥꯕ", "ꯑꯩꯕꯨ ꯑꯄꯥꯕ", "ꯃꯇꯦꯡ ꯄꯤꯌꯨ", "help"),
+            "mr-IN" to listOf("वाचवा", "मला वाचवा", "मदत करा", "मदत हवी", "help"),
+            "ne-IN" to listOf("बचाउनुहोस्", "मलाई बचाउनुहोस्", "मद्दत गर्नुहोस्", "help"),
+            "or-IN" to listOf("ବଞ୍ଚାଅ", "ମୋତେ ବଞ୍ଚାଅ", "ସାହାଯ୍ୟ କର", "help"),
+            "pa-IN" to listOf("ਬਚਾਓ", "ਮੈਨੂੰ ਬਚਾਓ", "ਮਦਦ ਕਰੋ", "ਮਦਦ ਚਾਹੀਦੀ", "help"),
+            "sa-IN" to listOf("रक्षतु", "मां रक्षतु", "साहाय्यं कुरुत", "help"),
+            "sat-IN" to listOf("help", "बचाओ"),
+            "sd-IN" to listOf("بچايو", "مون کي بچايو", "مدد ڪريو", "help"),
+            "ta-IN" to listOf("காப்பாற்றுங்கள்", "என்னைக் காப்பாற்றுங்கள்", "உதவி செய்யுங்கள்", "உதவி வேண்டும்", "help"),
+            "te-IN" to listOf("కాపాడండి", "నన్ను కాపాడండి", "సహాయం చేయండి", "సహాయం కావాలి", "help"),
+            "ur-IN" to listOf("بچاؤ", "مجھے بچاؤ", "مدد کرو", "مدد چاہیے", "پولیس بلاؤ", "help")
         )
+        val phrases = phrasesByLanguage[selectedLanguageTag] ?: listOf("help")
         val found = matches.firstOrNull { spoken ->
             val normalized = spoken.lowercase(Locale.ROOT)
             phrases.any { normalized.contains(it.lowercase(Locale.ROOT)) }
@@ -107,7 +133,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
         lastMatchAt = nowElapsed
         val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
         val timestamp = System.currentTimeMillis()
-        val text = "संभावित मदद की पुकार — पहचाने गए शब्द: $spoken"
+        val text = "संभावित मदद-संबंधी शब्द — भाषा: $selectedLanguageName ($selectedLanguageTag) — पहचाने गए शब्द: $spoken"
         val count = prefs.getInt("voice_signal_count", 0) + 1
         val history = prefs.getString("voice_signal_history", "") ?: ""
         val newEntry = "$timestamp|$text"
@@ -178,7 +204,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
 
     override fun onReadyForSpeech(params: Bundle?) {
         retryCount = 0
-        updateNotification("Voice monitoring चालू — बोले गए शब्द पहचानने की कोशिश।")
+        updateNotification("Voice monitoring चालू — $selectedLanguageName में शब्द पहचानने की कोशिश।")
     }
     override fun onBeginningOfSpeech() = Unit
     override fun onRmsChanged(rmsdB: Float) = Unit
