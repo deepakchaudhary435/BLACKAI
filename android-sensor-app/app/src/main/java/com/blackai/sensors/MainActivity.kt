@@ -126,25 +126,39 @@ class MainActivity : Activity() {
 
     private fun buildHistoryText(): String {
         val prefs = historyPrefs()
-        val count = prefs.getInt("signal_count", 0)
-        val last = prefs.getString("last_signal", null)
-        val time = prefs.getLong("last_signal_time", 0L)
-        val history = prefs.getString("signal_history", "") ?: ""
-        val entries = history.split("\n").filter { it.isNotBlank() }.map { entry ->
-            val parts = entry.split("|", limit = 2)
-            if (parts.size == 2) {
-                val formattedTime = parts[0].toLongOrNull()?.let {
-                    DateFormat.getDateTimeInstance().format(Date(it))
-                } ?: "समय उपलब्ध नहीं"
-                "• $formattedTime — ${parts[1]}"
-            } else entry
+        val motionCount = prefs.getInt("signal_count", 0)
+        val motionLast = prefs.getString("last_signal", null)
+        val motionTime = prefs.getLong("last_signal_time", 0L)
+        val motionHistory = prefs.getString("signal_history", "") ?: ""
+        val voiceCount = prefs.getInt("voice_signal_count", 0)
+        val voiceLast = prefs.getString("voice_last_signal", null)
+        val voiceTime = prefs.getLong("voice_last_signal_time", 0L)
+        val voiceHistory = prefs.getString("voice_signal_history", "") ?: ""
+
+        fun formatEntries(raw: String): String {
+            val entries = raw.split("\n").filter { it.isNotBlank() }.map { entry ->
+                val parts = entry.split("|", limit = 2)
+                if (parts.size == 2) {
+                    val formattedTime = parts[0].toLongOrNull()?.let {
+                        DateFormat.getDateTimeInstance().format(Date(it))
+                    } ?: "समय उपलब्ध नहीं"
+                    "• $formattedTime — ${parts[1]}"
+                } else entry
+            }
+            return if (entries.isEmpty()) "कोई रिकॉर्ड उपलब्ध नहीं।" else entries.joinToString("\n")
         }
-        val recentText = if (entries.isEmpty()) "कोई पुराना रिकॉर्ड उपलब्ध नहीं।" else entries.joinToString("\n")
-        return if (last == null) {
-            "अभी तक कोई संभावित संकेत दर्ज नहीं हुआ।"
+
+        val motionSection = if (motionLast == null) {
+            "Motion: अभी तक कोई संभावित सेंसर संकेत दर्ज नहीं हुआ।"
         } else {
-            "कुल संभावित संकेत: $count\nआखिरी संकेत: $last\nसमय: ${DateFormat.getDateTimeInstance().format(Date(time))}\n\nहाल के संकेत (अधिकतम 10):\n$recentText\n\nये केवल सेंसर संकेत हैं; गलत संकेत संभव हैं।"
+            "Motion संकेत: $motionCount\nआखिरी संकेत: $motionLast\nसमय: ${DateFormat.getDateTimeInstance().format(Date(motionTime))}\nहाल के संकेत:\n${formatEntries(motionHistory)}"
         }
+        val voiceSection = if (voiceLast == null) {
+            "Voice: अभी तक कोई संभावित phrase match इतिहास में दर्ज नहीं हुआ।"
+        } else {
+            "Voice संभावित phrase match: $voiceCount\nआखिरी रिकॉर्ड: $voiceLast\nसमय: ${DateFormat.getDateTimeInstance().format(Date(voiceTime))}\nहाल के रिकॉर्ड:\n${formatEntries(voiceHistory)}"
+        }
+        return "$motionSection\n\n$voiceSection\n\nनोट: ये प्रयोगात्मक संकेत हैं; गलत पहचान संभव है। सामान्य पहचाने गए शब्द इतिहास में सेव नहीं होते।"
     }
 
     private fun refreshSignalLog() { signalLog.text = buildHistoryText() }
@@ -193,6 +207,10 @@ class MainActivity : Activity() {
             put("last_signal", prefs.getString("last_signal", null) ?: JSONObject.NULL)
             put("last_signal_time", prefs.getLong("last_signal_time", 0L))
             put("signal_history", prefs.getString("signal_history", "") ?: "")
+            put("voice_signal_count", prefs.getInt("voice_signal_count", 0))
+            put("voice_last_signal", prefs.getString("voice_last_signal", null) ?: JSONObject.NULL)
+            put("voice_last_signal_time", prefs.getLong("voice_last_signal_time", 0L))
+            put("voice_signal_history", prefs.getString("voice_signal_history", "") ?: "")
             put("backup_created_at", System.currentTimeMillis())
         }
         contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use {
@@ -215,12 +233,21 @@ class MainActivity : Activity() {
         val last = if (lastValue == null || lastValue == JSONObject.NULL) null else lastValue.toString()
         val time = json.getLong("last_signal_time")
         val history = json.getString("signal_history")
-        require(count >= 0 && time >= 0L) { "बैकअप डेटा सही नहीं है" }
+        val voiceCount = json.optInt("voice_signal_count", 0)
+        val voiceLastValue = json.opt("voice_last_signal")
+        val voiceLast = if (voiceLastValue == null || voiceLastValue == JSONObject.NULL) null else voiceLastValue.toString()
+        val voiceTime = json.optLong("voice_last_signal_time", 0L)
+        val voiceHistory = json.optString("voice_signal_history", "")
+        require(count >= 0 && time >= 0L && voiceCount >= 0 && voiceTime >= 0L) { "बैकअप डेटा सही नहीं है" }
         historyPrefs().edit()
             .putInt("signal_count", count)
             .putString("last_signal", last)
             .putLong("last_signal_time", time)
             .putString("signal_history", history)
+            .putInt("voice_signal_count", voiceCount)
+            .putString("voice_last_signal", voiceLast)
+            .putLong("voice_last_signal_time", voiceTime)
+            .putString("voice_signal_history", voiceHistory)
             .apply()
         refreshSignalLog()
         Toast.makeText(this, "पुरानी BLACKAI हिस्ट्री वापस आ गई।", Toast.LENGTH_LONG).show()
