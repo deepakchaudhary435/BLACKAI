@@ -119,6 +119,39 @@ class MainActivity : Activity() {
             }
         })
         layout.addView(TextView(this).apply {
+            text = "BLACKAI — सुरक्षा केंद्र"
+            textSize = 22f
+            setPadding(0, 28, 0, 8)
+        })
+        layout.addView(TextView(this).apply {
+            text = "यहाँ से आपातकालीन कॉल स्क्रीन खोलें, भरोसेमंद संपर्क सेव करें और SMS स्वयं जाँचकर भेजने के लिए तैयार करें। BLACKAI अपने आप कॉल या संदेश नहीं भेजेगा।"
+            textSize = 14f
+        })
+        layout.addView(Button(this).apply {
+            text = "आपातकालीन सहायता — 112 कॉल स्क्रीन"
+            setOnClickListener { confirmEmergencyDial() }
+        })
+        layout.addView(Button(this).apply {
+            text = "भरोसेमंद संपर्क जोड़ें"
+            setOnClickListener { addTrustedContact() }
+        })
+        layout.addView(Button(this).apply {
+            text = "मेरे भरोसेमंद संपर्क देखें"
+            setOnClickListener { showTrustedContacts() }
+        })
+        layout.addView(Button(this).apply {
+            text = "आपातकालीन SMS तैयार करें"
+            setOnClickListener { prepareEmergencySms() }
+        })
+        layout.addView(Button(this).apply {
+            text = "सुरक्षा चेकलिस्ट"
+            setOnClickListener { showSafetyChecklist() }
+        })
+        layout.addView(Button(this).apply {
+            text = "आपातकालीन गतिविधि इतिहास"
+            setOnClickListener { showEmergencyHistory() }
+        })
+        layout.addView(TextView(this).apply {
             text = "स्थानीय सेंसर लॉग"
             textSize = 20f
             setPadding(0, 28, 0, 8)
@@ -210,6 +243,143 @@ class MainActivity : Activity() {
                 applyPremiumTheme(view.getChildAt(index))
             }
         }
+    }
+
+    private fun emergencyPrefs() = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
+
+    private fun logEmergencyAction(action: String) {
+        val p = emergencyPrefs()
+        val old = p.getString("history", "") ?: ""
+        val entry = "${System.currentTimeMillis()}|$action"
+        val updated = (listOf(entry) + old.split("\\n").filter { it.isNotBlank() }).take(50).joinToString("\\n")
+        p.edit().putString("history", updated).apply()
+    }
+
+    private fun confirmEmergencyDial() {
+        AlertDialog.Builder(this)
+            .setTitle("112 आपातकालीन सहायता")
+            .setMessage("केवल वास्तविक आपातकाल में आगे बढ़ें। अगली स्क्रीन में कॉल करने से पहले नंबर और स्थिति जाँचें। BLACKAI कॉल अपने आप नहीं करेगा।")
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("कॉल स्क्रीन खोलें") { _, _ ->
+                logEmergencyAction("112 कॉल स्क्रीन खोली")
+                try { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112"))) }
+                catch (_: Exception) { Toast.makeText(this, "कॉल स्क्रीन उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
+            }.show()
+    }
+
+    private fun addTrustedContact() {
+        val nameInput = android.widget.EditText(this).apply { hint = "नाम" }
+        val phoneInput = android.widget.EditText(this).apply {
+            hint = "मोबाइल नंबर"
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 8, 32, 0)
+            addView(nameInput)
+            addView(phoneInput)
+        }
+        AlertDialog.Builder(this).setTitle("भरोसेमंद संपर्क जोड़ें")
+            .setView(panel)
+            .setMessage("अधिकतम 5 संपर्क। नंबर सही होने की पुष्टि करें।")
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("सेव करें") { _, _ ->
+                val name = nameInput.text.toString().trim()
+                val phone = phoneInput.text.toString().trim()
+                val digits = phone.filter { it.isDigit() }
+                if (name.isBlank() || digits.length !in 10..13) {
+                    Toast.makeText(this, "नाम और सही मोबाइल नंबर भरें।", Toast.LENGTH_LONG).show()
+                } else {
+                    val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+                    if (arr.length() >= 5) {
+                        Toast.makeText(this, "अधिकतम 5 संपर्क सेव किए जा सकते हैं।", Toast.LENGTH_LONG).show()
+                    } else {
+                        arr.put(JSONObject().put("name", name).put("phone", phone))
+                        emergencyPrefs().edit().putString("contacts", arr.toString()).apply()
+                        Toast.makeText(this, "संपर्क इस फोन में सेव हो गया।", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.show()
+    }
+
+    private fun showTrustedContacts() {
+        val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (arr.length() == 0) {
+            AlertDialog.Builder(this).setMessage("अभी कोई भरोसेमंद संपर्क सेव नहीं है।").setPositiveButton("ठीक है", null).show()
+            return
+        }
+        val lines = (0 until arr.length()).map { i ->
+            val item = arr.getJSONObject(i)
+            "${i + 1}. ${item.optString("name")} — ${item.optString("phone")}"
+        }
+        AlertDialog.Builder(this).setTitle("भरोसेमंद संपर्क")
+            .setItems(lines.toTypedArray()) { _, which ->
+                val item = arr.getJSONObject(which)
+                AlertDialog.Builder(this).setTitle(item.optString("name"))
+                    .setMessage(item.optString("phone"))
+                    .setNegativeButton("बंद करें", null)
+                    .setPositiveButton("हटाएँ") { _, _ ->
+                        val updated = org.json.JSONArray()
+                        for (i in 0 until arr.length()) if (i != which) updated.put(arr.get(i))
+                        emergencyPrefs().edit().putString("contacts", updated.toString()).apply()
+                        Toast.makeText(this, "संपर्क हटा दिया गया।", Toast.LENGTH_SHORT).show()
+                    }.show()
+            }.setNegativeButton("बंद करें", null).show()
+    }
+
+    private fun prepareEmergencySms() {
+        val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (arr.length() == 0) {
+            Toast.makeText(this, "पहले भरोसेमंद संपर्क जोड़ें।", Toast.LENGTH_LONG).show()
+            return
+        }
+        val numbers = (0 until arr.length()).map { arr.getJSONObject(it).optString("phone") }
+        val body = "मुझे सहायता की आवश्यकता है। कृपया मुझसे संपर्क करें। यह संदेश BLACKAI से स्वयं जाँचकर भेजा जा रहा है।"
+        AlertDialog.Builder(this).setTitle("SMS तैयार करें")
+            .setMessage("संदेश आपके SMS ऐप में खुलेगा। भेजने से पहले प्राप्तकर्ता और संदेश जाँचें। BLACKAI इसे अपने आप नहीं भेजेगा।")
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("SMS ऐप खोलें") { _, _ ->
+                logEmergencyAction("संपर्कों के लिए SMS composer खोला")
+                val uri = Uri.parse("smsto:" + numbers.joinToString(";"))
+                val intent = Intent(Intent.ACTION_SENDTO, uri).putExtra("sms_body", body)
+                try { startActivity(intent) }
+                catch (_: Exception) { Toast.makeText(this, "SMS ऐप उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
+            }.show()
+    }
+
+    private fun showSafetyChecklist() {
+        val items = arrayOf(
+            "फोन में पर्याप्त बैटरी है",
+            "किसी भरोसेमंद व्यक्ति को अपनी योजना बताई है",
+            "आवश्यक संपर्क नंबर उपलब्ध हैं",
+            "यात्रा/मुलाकात का स्थान और वापसी योजना साझा है",
+            "फोन की लोकेशन सेटिंग अपनी इच्छा से जाँची है"
+        )
+        val checks = items.map { android.widget.CheckBox(this).apply { text = it } }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 8, 24, 8)
+            checks.forEach { addView(it) }
+        }
+        AlertDialog.Builder(this).setTitle("व्यक्तिगत सुरक्षा चेकलिस्ट")
+            .setView(panel).setNegativeButton("बंद करें", null)
+            .setPositiveButton("पूरा करें") { _, _ ->
+                val done = checks.count { it.isChecked }
+                logEmergencyAction("सुरक्षा चेकलिस्ट: $done/${items.size} पूरे")
+                Toast.makeText(this, "$done में से ${items.size} बिंदु पूरे।", Toast.LENGTH_LONG).show()
+            }.show()
+    }
+
+    private fun showEmergencyHistory() {
+        val raw = emergencyPrefs().getString("history", "") ?: ""
+        val lines = raw.split("\\n").filter { it.isNotBlank() }.map { row ->
+            val p = row.split("|", limit = 2)
+            val whenText = p.firstOrNull()?.toLongOrNull()?.let { DateFormat.getDateTimeInstance().format(Date(it)) } ?: "समय अज्ञात"
+            "$whenText — ${p.getOrElse(1) { "गतिविधि" }}"
+        }
+        AlertDialog.Builder(this).setTitle("आपातकालीन गतिविधि इतिहास")
+            .setMessage(if (lines.isEmpty()) "अभी कोई गतिविधि दर्ज नहीं है।" else lines.joinToString("\\n"))
+            .setPositiveButton("ठीक है", null).show()
     }
 
     private fun historyPrefs() = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
