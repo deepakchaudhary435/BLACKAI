@@ -8,6 +8,10 @@ android {
     namespace = "com.blackai.sensors"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.blackai.sensors"
         minSdk = 26
