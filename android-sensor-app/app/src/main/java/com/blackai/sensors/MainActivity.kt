@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -25,6 +27,13 @@ class MainActivity : Activity() {
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
+    private val dashboardHandler = Handler(Looper.getMainLooper())
+    private val dashboardRefreshTask = object : Runnable {
+        override fun run() {
+            if (::dashboard.isInitialized) refreshDashboard()
+            dashboardHandler.postDelayed(this, 2000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -140,7 +149,13 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::signalLog.isInitialized) refreshSignalLog()
-        if (::dashboard.isInitialized) refreshDashboard()
+        dashboardHandler.removeCallbacks(dashboardRefreshTask)
+        dashboardHandler.post(dashboardRefreshTask)
+    }
+
+    override fun onPause() {
+        dashboardHandler.removeCallbacks(dashboardRefreshTask)
+        super.onPause()
     }
 
     private fun historyPrefs() = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
