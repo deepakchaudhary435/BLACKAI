@@ -25,6 +25,7 @@ import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import java.text.DateFormat
 import java.util.Date
 
@@ -136,6 +137,10 @@ class MainActivity : Activity() {
         layout.addView(Button(this).apply {
             text = "Firebase Login / मेरी Profile"
             setOnClickListener { showAccountCenter() }
+        })
+        layout.addView(Button(this).apply {
+            text = "BLACKAI सहायता केंद्र — समस्या भेजें"
+            setOnClickListener { showSupportCenter() }
         })
         layout.addView(TextView(this).apply {
             text = "BLACKAI — लोकेशन साझा करें"
@@ -420,6 +425,64 @@ class MainActivity : Activity() {
                 }
                 startActivity(Intent.createChooser(send, "लोकेशन किसके साथ साझा करें?"))
             }.show()
+    }
+
+
+    private fun showSupportCenter() {
+        val user = firebaseAuth.currentUser
+        if (user == null) {
+            AlertDialog.Builder(this)
+                .setTitle("पहले Login करें")
+                .setMessage("सहायता रिपोर्ट आपके BLACKAI अकाउंट से जोड़ी जाएगी। पहले Firebase Login करें।")
+                .setPositiveButton("ठीक है", null)
+                .show()
+            return
+        }
+        val input = android.widget.EditText(this).apply {
+            hint = "अपनी समस्या या सुझाव लिखें"
+            minLines = 3
+            maxLines = 6
+            gravity = android.view.Gravity.TOP
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 8, 32, 0)
+            addView(input)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("BLACKAI सहायता केंद्र")
+            .setMessage("रिपोर्ट 5 से 2000 अक्षरों की हो सकती है। इसमें पासवर्ड, OTP या निजी जानकारी न लिखें।")
+            .setView(panel)
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("रिपोर्ट भेजें", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val message = input.text.toString().trim()
+                if (message.length !in 5..2000) {
+                    input.error = "5 से 2000 अक्षर लिखें"
+                    return@setOnClickListener
+                }
+                val ticket = mapOf("userId" to user.uid, "message" to message, "createdAt" to System.currentTimeMillis())
+                try {
+                    val ref = FirebaseDatabase.getInstance().reference.child("supportTickets").child(user.uid).push()
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                    ref.setValue(ticket).addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            logEmergencyAction("BLACKAI सहायता रिपोर्ट भेजी")
+                            Toast.makeText(this, "रिपोर्ट भेज दी गई।", Toast.LENGTH_LONG).show()
+                            dialog.dismiss()
+                        } else {
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                            Toast.makeText(this, "रिपोर्ट नहीं भेजी गई। Firebase Database Rules और इंटरनेट जाँचें।", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Firebase Database उपलब्ध नहीं है। सेटअप जाँचें।", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun emergencyPrefs() = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
