@@ -2,6 +2,7 @@ package com.blackai.sensors
 
 import android.Manifest
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,6 +21,7 @@ import java.util.Date
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var signalLog: TextView
+    private lateinit var dashboard: TextView
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
@@ -41,6 +43,16 @@ class MainActivity : Activity() {
         })
         status = TextView(this).apply { text = "Monitoring बंद है"; textSize = 16f }
         layout.addView(status)
+        layout.addView(TextView(this).apply {
+            text = "BLACKAI — Status Dashboard"
+            textSize = 20f
+            setPadding(0, 20, 0, 8)
+        })
+        dashboard = TextView(this).apply {
+            textSize = 16f
+            setPadding(16, 12, 16, 12)
+        }
+        layout.addView(dashboard)
         layout.addView(Button(this).apply {
             text = "मैं सहमत हूँ — Motion Monitoring शुरू करें"
             setOnClickListener {
@@ -55,6 +67,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 stopService(Intent(this@MainActivity, MotionMonitorService::class.java))
                 status.text = "Monitoring बंद है"
+                refreshDashboard()
             }
         })
         layout.addView(TextView(this).apply {
@@ -83,6 +96,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 stopService(Intent(this@MainActivity, VoiceMonitorService::class.java))
                 status.text = "Voice Detection बंद करने का अनुरोध भेजा गया।"
+                refreshDashboard()
             }
         })
         layout.addView(TextView(this).apply {
@@ -119,12 +133,14 @@ class MainActivity : Activity() {
         }
         setContentView(scrollView)
         refreshSignalLog()
+        refreshDashboard()
         checkBackupReminder()
     }
 
     override fun onResume() {
         super.onResume()
         if (::signalLog.isInitialized) refreshSignalLog()
+        if (::dashboard.isInitialized) refreshDashboard()
     }
 
     private fun historyPrefs() = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
@@ -167,6 +183,25 @@ class MainActivity : Activity() {
     }
 
     private fun refreshSignalLog() { signalLog.text = buildHistoryText() }
+
+    private fun refreshDashboard() {
+        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        val running = manager.getRunningServices(Int.MAX_VALUE).map { it.service.className }.toSet()
+        val motionOn = MotionMonitorService::class.java.name in running
+        val voiceOn = VoiceMonitorService::class.java.name in running
+        val prefs = historyPrefs()
+        val motionCount = prefs.getInt("signal_count", 0)
+        val voiceCount = prefs.getInt("voice_signal_count", 0)
+        val motionTime = prefs.getLong("last_signal_time", 0L)
+        val voiceTime = prefs.getLong("voice_last_signal_time", 0L)
+        fun timeLabel(time: Long): String =
+            if (time > 0L) DateFormat.getDateTimeInstance().format(Date(time)) else "अभी कोई रिकॉर्ड नहीं"
+        dashboard.text = "Voice Detection: ${if (voiceOn) "चालू" else "बंद"}\n" +
+            "Motion Monitoring: ${if (motionOn) "चालू" else "बंद"}\n\n" +
+            "Voice History: $voiceCount रिकॉर्ड\nआखिरी Voice रिकॉर्ड: ${timeLabel(voiceTime)}\n\n" +
+            "Motion History: $motionCount रिकॉर्ड\nआखिरी Motion संकेत: ${timeLabel(motionTime)}\n\n" +
+            "नोट: चालू/बंद स्थिति Android service के आधार पर दिखाई जाती है। ये प्रयोगात्मक संकेत हैं, आपातकाल या अपराध की पुष्टि नहीं।"
+    }
 
     private fun createBackupFile() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -316,11 +351,13 @@ class MainActivity : Activity() {
         val intent = Intent(this, VoiceMonitorService::class.java)
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
         status.text = "Voice Detection शुरू करने का अनुरोध भेजा गया।"
+        refreshDashboard()
     }
 
     private fun startMonitoring() {
         val intent = Intent(this, MotionMonitorService::class.java)
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
         status.text = "Monitoring चालू — स्थायी notification दिखाई देगा।"
+        refreshDashboard()
     }
 }
