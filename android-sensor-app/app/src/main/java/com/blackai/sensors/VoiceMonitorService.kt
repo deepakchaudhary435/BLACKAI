@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import java.util.Locale
 
 /**
@@ -48,6 +49,10 @@ class VoiceMonitorService : Service(), RecognitionListener {
                 SpeechRecognizer.createSpeechRecognizer(this)
             }
             recognizer?.setRecognitionListener(this)
+            val provider = Settings.Secure.getString(contentResolver, "voice_recognition_service")
+                ?.substringBefore("/")
+                ?: "system default"
+            updateNotification("Speech provider: $provider")
             startListening()
         } catch (e: Exception) {
             updateNotification("Voice recognition शुरू नहीं हो सकी।")
