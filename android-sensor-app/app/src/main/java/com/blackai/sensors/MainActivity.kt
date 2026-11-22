@@ -5,6 +5,9 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -21,6 +24,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
+import com.google.firebase.auth.FirebaseAuth
 import java.text.DateFormat
 import java.util.Date
 
@@ -32,6 +36,8 @@ class MainActivity : Activity() {
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
+    private val locationPermissionRequest = 71
+    private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val dashboardHandler = Handler(Looper.getMainLooper())
     private val dashboardRefreshTask = object : Runnable {
         override fun run() {
@@ -117,6 +123,32 @@ class MainActivity : Activity() {
                 status.text = "Voice Detection बंद करने का अनुरोध भेजा गया।"
                 refreshDashboard()
             }
+        })
+        layout.addView(TextView(this).apply {
+            text = "BLACKAI — अकाउंट और प्रोफाइल"
+            textSize = 20f
+            setPadding(0, 28, 0, 8)
+        })
+        layout.addView(TextView(this).apply {
+            text = "Firebase ईमेल अकाउंट से लॉगिन/रजिस्ट्रेशन करें। प्रोफाइल की जानकारी इसी अकाउंट से दिखाई जाएगी।"
+            textSize = 14f
+        })
+        layout.addView(Button(this).apply {
+            text = "Firebase Login / मेरी Profile"
+            setOnClickListener { showAccountCenter() }
+        })
+        layout.addView(TextView(this).apply {
+            text = "BLACKAI — लोकेशन साझा करें"
+            textSize = 20f
+            setPadding(0, 28, 0, 8)
+        })
+        layout.addView(TextView(this).apply {
+            text = "लोकेशन केवल आपके बटन दबाने और अनुमति देने पर एक बार ली जाएगी। बैकग्राउंड में ट्रैकिंग नहीं होगी; भेजने से पहले आप शेयर स्क्रीन में प्राप्तकर्ता चुनेंगे।"
+            textSize = 14f
+        })
+        layout.addView(Button(this).apply {
+            text = "मेरी वर्तमान लोकेशन साझा करें"
+            setOnClickListener { requestAndShareLocation() }
         })
         layout.addView(TextView(this).apply {
             text = "BLACKAI — सुरक्षा केंद्र"
@@ -243,6 +275,151 @@ class MainActivity : Activity() {
                 applyPremiumTheme(view.getChildAt(index))
             }
         }
+    }
+
+    private fun showAccountCenter() {
+        val user = firebaseAuth.currentUser
+        if (user != null) {
+            AlertDialog.Builder(this)
+                .setTitle("BLACKAI — मेरी Profile")
+                .setMessage("लॉगिन ईमेल: ${user.email ?: "उपलब्ध नहीं"}\nईमेल सत्यापित: ${if (user.isEmailVerified) "हाँ" else "नहीं"}\n\nयह Firebase Authentication प्रोफाइल है।")
+                .setPositiveButton("Logout") { _, _ ->
+                    firebaseAuth.signOut()
+                    Toast.makeText(this, "आप लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("बंद करें", null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("BLACKAI अकाउंट")
+            .setItems(arrayOf("लॉगिन", "नया अकाउंट बनाएँ", "पासवर्ड रीसेट")) { _, which ->
+                when (which) {
+                    0 -> showAuthForm("login")
+                    1 -> showAuthForm("register")
+                    2 -> showPasswordReset()
+                }
+            }
+            .setNegativeButton("रद्द करें", null)
+            .show()
+    }
+
+    private fun showAuthForm(mode: String) {
+        val email = android.widget.EditText(this).apply {
+            hint = "ईमेल"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        }
+        val password = android.widget.EditText(this).apply {
+            hint = "पासवर्ड (कम से कम 6 अक्षर)"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 8, 32, 0)
+            addView(email)
+            addView(password)
+        }
+        AlertDialog.Builder(this).setTitle(if (mode == "register") "नया BLACKAI अकाउंट" else "BLACKAI Login")
+            .setView(panel)
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton(if (mode == "register") "रजिस्टर करें" else "लॉगिन") { _, _ ->
+                val mail = email.text.toString().trim()
+                val pass = password.text.toString()
+                if (!android.util.Patterns.EMAIL_ADDRESS.matcher(mail).matches() || pass.length < 6) {
+                    Toast.makeText(this, "सही ईमेल और कम से कम 6 अक्षर का पासवर्ड भरें।", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val task = if (mode == "register") firebaseAuth.createUserWithEmailAndPassword(mail, pass)
+                    else firebaseAuth.signInWithEmailAndPassword(mail, pass)
+                task.addOnCompleteListener(this) { result ->
+                    if (result.isSuccessful) {
+                        if (mode == "register") firebaseAuth.currentUser?.sendEmailVerification()
+                        val message = if (mode == "register") "अकाउंट बन गया। ईमेल verification लिंक जाँचें।" else "लॉगिन सफल।"
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this, "Firebase अकाउंट नहीं खुला: ${result.exception?.localizedMessage ?: "कृपया सेटिंग जाँचें"}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.show()
+    }
+
+    private fun showPasswordReset() {
+        val email = android.widget.EditText(this).apply {
+            hint = "रजिस्टर्ड ईमेल"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        }
+        AlertDialog.Builder(this).setTitle("पासवर्ड रीसेट")
+            .setView(email)
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("रीसेट ईमेल भेजें") { _, _ ->
+                val mail = email.text.toString().trim()
+                if (!android.util.Patterns.EMAIL_ADDRESS.matcher(mail).matches()) {
+                    Toast.makeText(this, "सही ईमेल भरें।", Toast.LENGTH_LONG).show()
+                } else {
+                    firebaseAuth.sendPasswordResetEmail(mail).addOnCompleteListener(this) { result ->
+                        val message = if (result.isSuccessful) "यदि ईमेल अकाउंट मौजूद है तो रीसेट लिंक भेज दिया गया।" else "रीसेट अनुरोध पूरा नहीं हुआ।"
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.show()
+    }
+
+    private fun requestAndShareLocation() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), locationPermissionRequest)
+            return
+        }
+        fetchOneTimeLocation()
+    }
+
+    @Suppress("MissingPermission")
+    private fun fetchOneTimeLocation() {
+        val manager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val provider = when {
+            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+            manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+            else -> null
+        }
+        if (provider == null) {
+            Toast.makeText(this, "फोन की Location setting चालू करें, फिर दोबारा प्रयास करें।", Toast.LENGTH_LONG).show()
+            return
+        }
+        status.text = "आपकी अनुमति से एक बार लोकेशन प्राप्त की जा रही है…"
+        if (Build.VERSION.SDK_INT >= 30) {
+            manager.getCurrentLocation(provider, null, mainExecutor) { location ->
+                if (location != null) shareLocationToUser(location)
+                else Toast.makeText(this, "अभी लोकेशन नहीं मिली। खुले स्थान पर दोबारा प्रयास करें।", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    manager.removeUpdates(this)
+                    shareLocationToUser(location)
+                }
+                @Deprecated("Deprecated by Android")
+                override fun onStatusChanged(providerName: String?, statusCode: Int, extras: Bundle?) {}
+                override fun onProviderEnabled(providerName: String) {}
+                override fun onProviderDisabled(providerName: String) {}
+            }
+            try { manager.requestSingleUpdate(provider, listener, Looper.getMainLooper()) }
+            catch (_: Exception) { Toast.makeText(this, "लोकेशन नहीं मिल सकी।", Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun shareLocationToUser(location: Location) {
+        val maps = "https://maps.google.com/?q=${location.latitude},${location.longitude}"
+        val message = "मेरी BLACKAI लोकेशन (समय: ${DateFormat.getDateTimeInstance().format(Date())}):\n$maps\nकृपया पहले मुझसे संपर्क करें।"
+        AlertDialog.Builder(this).setTitle("लोकेशन मिल गई")
+            .setMessage("लोकेशन लिंक शेयर करने से पहले जाँचें। इसे भेजना आपकी पसंद है।")
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("शेयर करें") { _, _ ->
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, message)
+                }
+                startActivity(Intent.createChooser(send, "लोकेशन किसके साथ साझा करें?"))
+            }.show()
     }
 
     private fun emergencyPrefs() = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
@@ -583,6 +760,8 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
+        else if (requestCode == locationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) fetchOneTimeLocation()
+        else if (requestCode == locationPermissionRequest) Toast.makeText(this, "लोकेशन अनुमति नहीं मिली।", Toast.LENGTH_LONG).show()
         else if (requestCode == 41 || requestCode == voicePermissionRequest) status.text = "ज़रूरी अनुमति नहीं मिली; Monitoring शुरू नहीं हुई।"
     }
 
