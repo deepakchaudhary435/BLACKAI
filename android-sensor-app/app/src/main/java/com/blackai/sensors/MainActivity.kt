@@ -167,6 +167,12 @@ class MainActivity : Activity() {
             text = "BLACKAI AI Assistant — Chat और History"
             setOnClickListener { showAiChatCenter() }
         })
+        if (BuildConfig.DEBUG) {
+            layout.addView(Button(this).apply {
+                text = "App Check जाँच (अस्थायी Debug)"
+                setOnClickListener { showAppCheckDiagnostics() }
+            })
+        }
         layout.addView(TextView(this).apply {
             text = "BLACKAI — लोकेशन साझा करें"
             textSize = 20f
@@ -458,6 +464,31 @@ class MainActivity : Activity() {
     }
 
 
+
+    // Temporary debug-only check. Never display or store the App Check token.
+    private fun showAppCheckDiagnostics() {
+        val message = TextView(this).apply {
+            text = "App Check की जाँच हो रही है…"
+            textSize = 16f
+            setPadding(28, 20, 28, 20)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("BLACKAI — App Check Debug")
+            .setView(message)
+            .setPositiveButton("बंद करें", null)
+            .create()
+        dialog.show()
+        Firebase.appCheck.getAppCheckToken(false)
+            .addOnSuccessListener {
+                message.text = "App Check से टोकन मिल गया।\n\nध्यान दें: यह केवल टोकन मिलने की जाँच है; इससे यह साबित नहीं होता कि Debug Secret Firebase Console में रजिस्टर है या AI सेवा स्वीकार कर रही है।"
+            }
+            .addOnFailureListener { error ->
+                val detail = (error.localizedMessage ?: error.javaClass.simpleName)
+                    .replace(Regex("\\s+"), " ")
+                    .take(220)
+                message.text = "App Check टोकन नहीं मिला।\nकारण: $detail"
+            }
+    }
 
     private fun showAiChatCenter() {
         val user = firebaseAuth.currentUser
