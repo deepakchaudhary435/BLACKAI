@@ -1023,9 +1023,10 @@ class MainActivity : Activity() {
 
     private fun writeBackup(uri: Uri) {
         val prefs = historyPrefs()
+        val emergency = emergencyPrefs()
         val json = JSONObject().apply {
             put("format", "BLACKAI_SENSOR_HISTORY")
-            put("version", 1)
+            put("version", 2)
             put("signal_count", prefs.getInt("signal_count", 0))
             put("last_signal", prefs.getString("last_signal", null) ?: JSONObject.NULL)
             put("last_signal_time", prefs.getLong("last_signal_time", 0L))
@@ -1034,14 +1035,15 @@ class MainActivity : Activity() {
             put("voice_last_signal", prefs.getString("voice_last_signal", null) ?: JSONObject.NULL)
             put("voice_last_signal_time", prefs.getLong("voice_last_signal_time", 0L))
             put("voice_signal_history", prefs.getString("voice_signal_history", "") ?: "")
+            put("emergency_history", emergency.getString("history", "") ?: "")
+            put("trusted_contacts", emergency.getString("contacts", "[]") ?: "[]")
             put("backup_created_at", System.currentTimeMillis())
         }
         contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use {
             it.write(json.toString(2))
         } ?: throw IllegalStateException("फ़ाइल नहीं खुल सकी")
-        historyPrefs().edit().putLong("last_backup_at", System.currentTimeMillis()).apply()
-        historyPrefs().edit().remove("backup_reminder_snoozed_until").apply()
-        Toast.makeText(this, "BLACKAI हिस्ट्री बैकअप सेव हो गया।", Toast.LENGTH_LONG).show()
+        historyPrefs().edit().putLong("last_backup_at", System.currentTimeMillis()).remove("backup_reminder_snoozed_until").apply()
+        Toast.makeText(this, "BLACKAI बैकअप सेव हो गया। इसमें सुरक्षा इतिहास और भरोसेमंद संपर्क भी शामिल हैं। फ़ाइल निजी रखें।", Toast.LENGTH_LONG).show()
     }
 
     private fun restoreBackup(uri: Uri) {
@@ -1050,7 +1052,8 @@ class MainActivity : Activity() {
         } ?: throw IllegalStateException("बैकअप फ़ाइल नहीं पढ़ी जा सकी")
         val json = JSONObject(jsonText)
         require(json.optString("format") == "BLACKAI_SENSOR_HISTORY") { "यह BLACKAI का मान्य बैकअप नहीं है" }
-        require(json.optInt("version", -1) == 1) { "बैकअप वर्जन समर्थित नहीं है" }
+        val backupVersion = json.optInt("version", -1)
+        require(backupVersion in 1..2) { "बैकअप वर्जन समर्थित नहीं है" }
         val count = json.getInt("signal_count")
         val lastValue = json.opt("last_signal")
         val last = if (lastValue == null || lastValue == JSONObject.NULL) null else lastValue.toString()
@@ -1072,8 +1075,23 @@ class MainActivity : Activity() {
             .putLong("voice_last_signal_time", voiceTime)
             .putString("voice_signal_history", voiceHistory)
             .apply()
+        if (backupVersion >= 2) {
+            val contactsText = json.optString("trusted_contacts", "[]")
+            val contacts = org.json.JSONArray(contactsText)
+            require(contacts.length() <= 5) { "बैकअप में भरोसेमंद संपर्कों की सीमा से अधिक डेटा है" }
+            for (i in 0 until contacts.length()) {
+                val item = contacts.getJSONObject(i)
+                require(item.optString("name").isNotBlank()) { "संपर्क का नाम सही नहीं है" }
+                val digits = item.optString("phone").filter { it.isDigit() }
+                require(digits.length in 10..13) { "संपर्क नंबर सही नहीं है" }
+            }
+            emergencyPrefs().edit()
+                .putString("history", json.optString("emergency_history", ""))
+                .putString("contacts", contacts.toString())
+                .apply()
+        }
         refreshSignalLog()
-        Toast.makeText(this, "पुरानी BLACKAI हिस्ट्री वापस आ गई।", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, if (backupVersion >= 2) "BLACKAI हिस्ट्री और भरोसेमंद संपर्क Restore हो गए। कृपया नंबर जाँच लें।" else "पुरानी BLACKAI हिस्ट्री वापस आ गई।", Toast.LENGTH_LONG).show()
     }
 
     @Deprecated("Uses the Android document picker for broad device compatibility")
@@ -1086,7 +1104,7 @@ class MainActivity : Activity() {
                 createBackupRequest -> writeBackup(uri)
                 restoreBackupRequest -> AlertDialog.Builder(this)
                     .setTitle("पुरानी हिस्ट्री वापस लाएँ?")
-                    .setMessage("इससे अभी ऐप में मौजूद स्थानीय हिस्ट्री चुने गए बैकअप से बदल जाएगी।")
+                    .setMessage("इससे स्थानीय सेंसर/सुरक्षा इतिहास और (यदि बैकअप v2 है) भरोसेमंद संपर्क चुनी गई फ़ाइल से बदल सकते हैं। Restore के बाद संपर्क नंबर जाँचें।")
                     .setNegativeButton("रद्द करें", null)
                     .setPositiveButton("Restore करें") { _, _ ->
                         try { restoreBackup(uri) }
@@ -1117,7 +1135,9 @@ class MainActivity : Activity() {
             .setNegativeButton("रद्द करें", null)
             .setPositiveButton("इतिहास मिटाएँ") { _, _ ->
                 historyPrefs().edit().remove("signal_count").remove("last_signal")
-                    .remove("last_signal_time").remove("signal_history").apply()
+                    .remove("last_signal_time").remove("signal_history")
+                    .remove("voice_signal_count").remove("voice_last_signal")
+                    .remove("voice_last_signal_time").remove("voice_signal_history").apply()
                 refreshSignalLog()
                 status.text = "स्थानीय सेंसर इतिहास मिटा दिया गया। Monitoring की स्थिति नहीं बदली।"
             }.show()
