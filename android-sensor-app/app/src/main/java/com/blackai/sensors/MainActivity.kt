@@ -220,6 +220,10 @@ class MainActivity : Activity() {
             setOnClickListener { prepareEmergencySms() }
         })
         layout.addView(Button(this).apply {
+            text = "🚨 Emergency Alert — अलर्ट तैयार करें"
+            setOnClickListener { confirmEmergencyAlert() }
+        })
+        layout.addView(Button(this).apply {
             text = "सुरक्षा चेकलिस्ट"
             setOnClickListener { showSafetyChecklist() }
         })
@@ -769,6 +773,36 @@ class MainActivity : Activity() {
                 logEmergencyAction("संपर्कों के लिए SMS composer खोला")
                 val uri = Uri.parse("smsto:" + numbers.joinToString(";"))
                 val intent = Intent(Intent.ACTION_SENDTO, uri).putExtra("sms_body", body)
+                try { startActivity(intent) }
+                catch (_: Exception) { Toast.makeText(this, "SMS ऐप उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
+            }.show()
+    }
+
+    private fun confirmEmergencyAlert() {
+        val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (arr.length() == 0) {
+            AlertDialog.Builder(this).setTitle("भरोसेमंद संपर्क नहीं मिले")
+                .setMessage("Emergency Alert तैयार करने से पहले अपने भरोसेमंद संपर्क जोड़ें।")
+                .setPositiveButton("संपर्क जोड़ें") { _, _ -> addTrustedContact() }
+                .setNegativeButton("बंद करें", null).show()
+            return
+        }
+        val numbers = (0 until arr.length()).map { arr.getJSONObject(it).optString("phone") }
+            .filter { it.isNotBlank() }
+        if (numbers.isEmpty()) {
+            Toast.makeText(this, "संपर्क नंबर उपलब्ध नहीं हैं।", Toast.LENGTH_LONG).show()
+            return
+        }
+        val time = DateFormat.getDateTimeInstance().format(Date())
+        val message = "BLACKAI Emergency Alert: मुझे सहायता की आवश्यकता है। कृपया जल्द मुझसे संपर्क करें। समय: $time। यदि तत्काल खतरा है तो स्थानीय आपातकालीन सेवा 112 से संपर्क करें।"
+        AlertDialog.Builder(this)
+            .setTitle("🚨 Emergency Alert")
+            .setMessage("यह संदेश आपके SMS ऐप में तैयार होगा। प्राप्तकर्ता और संदेश जाँचकर आप स्वयं Send दबाएँगे। BLACKAI अपने आप SMS या कॉल नहीं करेगा। वर्तमान लोकेशन इसमें शामिल नहीं है; उसे अलग से साझा कर सकते हैं।")
+            .setNegativeButton("रद्द करें", null)
+            .setPositiveButton("SMS तैयार करें") { _, _ ->
+                logEmergencyAction("Emergency Alert SMS composer खोला")
+                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + numbers.joinToString(";")))
+                    .putExtra("sms_body", message)
                 try { startActivity(intent) }
                 catch (_: Exception) { Toast.makeText(this, "SMS ऐप उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
             }.show()
