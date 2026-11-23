@@ -329,12 +329,36 @@ class MainActivity : Activity() {
     private fun showAccountCenter() {
         val user = firebaseAuth.currentUser
         if (user != null) {
+            val createdAt = user.metadata?.creationTimestamp ?: 0L
+            val registrationDate = if (createdAt > 0L) DateFormat.getDateTimeInstance().format(Date(createdAt)) else "उपलब्ध नहीं"
+            val photoText = if (user.photoUrl != null) "उपलब्ध — Preview खोल सकते हैं" else "सेट नहीं है"
+            val details = "नाम: ${user.displayName ?: "सेट नहीं"}\\n" +
+                "लॉगिन ईमेल: ${user.email ?: "उपलब्ध नहीं"}\\n" +
+                "ईमेल सत्यापित: ${if (user.isEmailVerified) "हाँ" else "नहीं"}\\n" +
+                "रजिस्ट्रेशन: $registrationDate\\n" +
+                "प्रोफाइल फोटो: $photoText\\n\\n" +
+                "यह जानकारी Firebase अकाउंट से पढ़ी गई है।"
+            val actions = mutableListOf("ईमेल verification दोबारा भेजें")
+            if (user.photoUrl != null) actions.add("Profile Photo Preview खोलें")
+            actions.add("Logout")
             AlertDialog.Builder(this)
                 .setTitle("BLACKAI — मेरी Profile")
-                .setMessage("लॉगिन ईमेल: ${user.email ?: "उपलब्ध नहीं"}\nईमेल सत्यापित: ${if (user.isEmailVerified) "हाँ" else "नहीं"}\n\nयह Firebase Authentication प्रोफाइल है।")
-                .setPositiveButton("Logout") { _, _ ->
-                    firebaseAuth.signOut()
-                    Toast.makeText(this, "आप लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
+                .setMessage(details)
+                .setItems(actions.toTypedArray()) { _, which ->
+                    when (actions[which]) {
+                        "ईमेल verification दोबारा भेजें" -> user.sendEmailVerification()
+                            .addOnCompleteListener(this) { task ->
+                                Toast.makeText(this, if (task.isSuccessful) "Verification ईमेल भेजा गया।" else "ईमेल नहीं भेजा जा सका।", Toast.LENGTH_LONG).show()
+                            }
+                        "Profile Photo Preview खोलें" -> user.photoUrl?.let { photoUri ->
+                            try { startActivity(Intent(Intent.ACTION_VIEW, photoUri)) }
+                            catch (_: Exception) { Toast.makeText(this, "Photo Preview उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
+                        }
+                        "Logout" -> {
+                            firebaseAuth.signOut()
+                            Toast.makeText(this, "आप लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
                 .setNegativeButton("बंद करें", null)
                 .show()
