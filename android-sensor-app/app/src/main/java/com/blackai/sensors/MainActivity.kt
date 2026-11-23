@@ -96,6 +96,14 @@ class MainActivity : Activity() {
         }
         layout.addView(dashboard)
         layout.addView(Button(this).apply {
+            text = "🛡️ Emergency Control Center"
+            setOnClickListener { showEmergencyControlCenter() }
+        })
+        layout.addView(Button(this).apply {
+            text = "🕘 Recent Activity — हाल की गतिविधियाँ"
+            setOnClickListener { showRecentActivity() }
+        })
+        layout.addView(Button(this).apply {
             text = "मैं सहमत हूँ — Motion Monitoring शुरू करें"
             setOnClickListener {
                 if (Build.VERSION.SDK_INT >= 33 &&
@@ -775,6 +783,89 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle("आपातकालीन गतिविधि इतिहास")
             .setMessage(if (lines.isEmpty()) "अभी कोई गतिविधि दर्ज नहीं है।" else lines.joinToString("\\n"))
             .setPositiveButton("ठीक है", null).show()
+    }
+
+
+    /**
+     * Quick, user-controlled entry point for the safety tools already present in BLACKAI.
+     * This screen does not send alerts, calls, or location automatically.
+     */
+    private fun showEmergencyControlCenter() {
+        val user = firebaseAuth.currentUser
+        val contacts = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        val sensorPrefs = historyPrefs()
+        val motionOn = isServiceRunning(MotionMonitorService::class.java)
+        val voiceOn = isServiceRunning(VoiceMonitorService::class.java)
+        val summary = "अकाउंट: ${if (user != null) "लॉगिन" else "लॉगिन नहीं"}\n" +
+            "Motion Monitoring: ${if (motionOn) "चालू" else "बंद"}\n" +
+            "Voice Detection: ${if (voiceOn) "चालू" else "बंद"}\n" +
+            "भरोसेमंद संपर्क: ${contacts.length()}/5\n" +
+            "Motion संकेत: ${sensorPrefs.getInt("signal_count", 0)}\n" +
+            "Voice रिकॉर्ड: ${sensorPrefs.getInt("voice_signal_count", 0)}\n\n" +
+            "सभी अलर्ट और शेयरिंग आपके बटन दबाने व पुष्टि करने पर ही होंगे। सेंसर संकेत आपातकाल की पुष्टि नहीं करते।"
+        val actions = arrayOf(
+            "112 कॉल स्क्रीन खोलें",
+            "भरोसेमंद संपर्क देखें",
+            "आपातकालीन SMS तैयार करें",
+            "सुरक्षा चेकलिस्ट खोलें",
+            "Recent Activity देखें"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("BLACKAI — Emergency Control Center")
+            .setMessage(summary)
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> confirmEmergencyDial()
+                    1 -> showTrustedContacts()
+                    2 -> prepareEmergencySms()
+                    3 -> showSafetyChecklist()
+                    4 -> showRecentActivity()
+                }
+            }
+            .setNegativeButton("बंद करें", null)
+            .show()
+    }
+
+    private fun isServiceRunning(serviceClass: Class<*>): Boolean {
+        val manager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        return manager.getRunningServices(Int.MAX_VALUE).any {
+            it.service.className == serviceClass.name
+        }
+    }
+
+    /**
+     * Combines locally stored emergency, motion and voice events into a time-sorted view.
+     * No ordinary recognized speech or live audio is added here.
+     */
+    private fun showRecentActivity() {
+        val events = mutableListOf<Pair<Long, String>>()
+        fun addRows(raw: String, fallback: String) {
+            raw.replace("\\\\n", "\n").split("\n").filter { it.isNotBlank() }.forEach { row ->
+                val parts = row.split("|", limit = 2)
+                val time = parts.firstOrNull()?.toLongOrNull() ?: return@forEach
+                val label = parts.getOrElse(1) { fallback }.take(180)
+                events.add(time to label)
+            }
+        }
+
+        val emergencyRaw = emergencyPrefs().getString("history", "") ?: ""
+        addRows(emergencyRaw, "सुरक्षा गतिविधि")
+
+        val prefs = historyPrefs()
+        addRows(prefs.getString("signal_history", "") ?: "", "Motion संकेत")
+        addRows(prefs.getString("voice_signal_history", "") ?: "", "Voice संकेत")
+
+        val lines = events.sortedByDescending { it.first }.take(30).map { (time, label) ->
+            "${DateFormat.getDateTimeInstance().format(Date(time))} — $label"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("BLACKAI — Recent Activity")
+            .setMessage(
+                if (lines.isEmpty()) "अभी कोई हाल की गतिविधि दर्ज नहीं है।"
+                else lines.joinToString("\n\n")
+            )
+            .setPositiveButton("ठीक है", null)
+            .show()
     }
 
     private fun historyPrefs() = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
