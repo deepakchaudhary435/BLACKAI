@@ -25,7 +25,7 @@ service cloud.firestore {
         && request.resource.data.message is string
         && request.resource.data.message.size() >= 5
         && request.resource.data.message.size() <= 2000
-        && request.resource.data.createdAt is int
+        && request.resource.data.createdAt is number
         && request.resource.data.status == 'Pending'
         && request.resource.data.priority == 'Medium'
         && request.resource.data.adminReply == ''
@@ -40,6 +40,10 @@ service cloud.firestore {
           'userId', 'message', 'createdAt', 'status', 'priority',
           'adminReply', 'adminReplyAt'
         ])
+        && request.resource.data.keys().hasAll([
+          'userId', 'message', 'createdAt', 'status', 'priority',
+          'adminReply', 'adminReplyAt'
+        ])
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.message == resource.data.message
         && request.resource.data.createdAt == resource.data.createdAt
@@ -47,7 +51,7 @@ service cloud.firestore {
         && request.resource.data.priority in ['High', 'Medium', 'Low']
         && request.resource.data.adminReply is string
         && request.resource.data.adminReply.size() <= 2000
-        && request.resource.data.adminReplyAt is int;
+        && request.resource.data.adminReplyAt is number;
 
       allow delete: if isSupportAdmin();
     }
