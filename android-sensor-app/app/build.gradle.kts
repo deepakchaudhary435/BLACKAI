@@ -52,6 +52,43 @@ kotlin {
     }
 }
 
+// Fetch the verified public YAMNet model and AudioSet labels into app assets at build time.
+val downloadYamnetAssets by tasks.registering {
+    val assetsDir = layout.projectDirectory.dir("src/main/assets")
+    outputs.files(assetsDir.file("yamnet.tflite"), assetsDir.file("yamnet_label_list.txt"))
+    doLast {
+        val dir = assetsDir.asFile.apply { mkdirs() }
+        fun fetch(url: String, name: String, expectedSha256: String) {
+            val target = dir.resolve(name)
+            if (target.exists() && java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(target.readBytes()).joinToString("") { "%02x".format(it) } == expectedSha256) return
+            val temp = dir.resolve("$name.download")
+            java.net.URL(url).openConnection().apply {
+                connectTimeout = 20000
+                readTimeout = 60000
+            }.getInputStream().use { input -> temp.outputStream().use { output -> input.copyTo(output) } }
+            val actual = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(temp.readBytes()).joinToString("") { "%02x".format(it) }
+            if (actual != expectedSha256) {
+                temp.delete()
+                throw GradleException("SHA-256 verification failed for $name")
+            }
+            if (!temp.renameTo(target)) throw GradleException("Could not install $name")
+        }
+        fetch(
+            "https://huggingface.co/litert-community/MediaPipe-AudioClassifier-YAMNet/resolve/main/yamnet.tflite?download=true",
+            "yamnet.tflite",
+            "4d8b4a53282dc83ef04e3e7dbc4fbc98082e34e44ed798e16c3a0cdd4c584faf"
+        )
+        fetch(
+            "https://huggingface.co/litert-community/MediaPipe-AudioClassifier-YAMNet/resolve/main/yamnet_label_list.txt?download=true",
+            "yamnet_label_list.txt",
+            "8e1267a120c1932b7273c0d0e0c5529edbb9a35512b437b1c8982baa59047051"
+        )
+    }
+}
+tasks.named("preBuild").configure { dependsOn(downloadYamnetAssets) }
+
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-auth")
@@ -61,4 +98,5 @@ dependencies {
     // Debug-only testing support; never ship this debug-provider configuration in a production release.
     debugImplementation("com.google.firebase:firebase-appcheck-debug")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.tensorflow:tensorflow-lite:2.17.0")
 }
