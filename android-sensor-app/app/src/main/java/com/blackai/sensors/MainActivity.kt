@@ -282,6 +282,7 @@ class MainActivity : Activity() {
             .setTitle("BLACKAI का Theme चुनें")
             .setSingleChoiceItems(names, selected) { dialog, which ->
                 prefs.edit().putInt("app_theme", which).apply()
+                showPage("home")
                 applyAppTheme(mainContentView)
                 dialog.dismiss()
                 Toast.makeText(this, names[which] + " Theme लागू हो गई।", Toast.LENGTH_SHORT).show()
@@ -331,6 +332,7 @@ class MainActivity : Activity() {
         val page = pageViews[targetId] ?: return
         pageHost.removeAllViews()
         pageHost.addView(page, android.widget.FrameLayout.LayoutParams(-1, -1))
+        applyAppTheme(page)
         if (targetId == "history") refreshSignalLog()
         if (targetId == "home" || targetId == "safety") refreshDashboard()
     }
