@@ -562,8 +562,12 @@ class MainActivity : Activity() {
         val expiry = prefs.getLong("expires_at", 0L)
         if (expiry > System.currentTimeMillis()) return
         if (firebaseAuth.currentUser?.uid != ownerUid) return
-        FirebaseDatabase.getInstance().reference.child("liveShares").child(id).removeValue()
-            .addOnSuccessListener { prefs.edit().clear().apply() }
+        val ref = FirebaseDatabase.getInstance().reference.child("liveShares").child(id)
+        ref.removeValue().addOnSuccessListener { prefs.edit().clear().apply() }
+            .addOnFailureListener {
+                ref.updateChildren(mapOf("active" to false, "updatedAt" to System.currentTimeMillis()))
+                    .addOnSuccessListener { prefs.edit().clear().apply() }
+            }
     }
     private fun startLiveLocationSharing() {
         val user = firebaseAuth.currentUser
