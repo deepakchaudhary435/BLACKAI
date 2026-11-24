@@ -170,6 +170,25 @@ class MainActivity : Activity() {
             setOnClickListener { showAccountCenter() }
         })
         layout.addView(Button(this).apply {
+            text = "🚪 Logout — अकाउंट से बाहर निकलें"
+            setOnClickListener {
+                val user = firebaseAuth.currentUser
+                if (user == null) {
+                    Toast.makeText(this@MainActivity, "अभी कोई अकाउंट लॉगिन नहीं है।", Toast.LENGTH_SHORT).show()
+                } else {
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Logout करें?")
+                        .setMessage("क्या आप ${user.email ?: "इस अकाउंट"} से लॉगआउट करना चाहते हैं?")
+                        .setNegativeButton("रद्द करें", null)
+                        .setPositiveButton("Logout") { _, _ ->
+                            firebaseAuth.signOut()
+                            Toast.makeText(this@MainActivity, "आप सफलतापूर्वक लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
+                        }
+                        .show()
+                }
+            }
+        })
+        layout.addView(Button(this).apply {
             text = "BLACKAI सहायता केंद्र — समस्या भेजें"
             setOnClickListener { showSupportCenter() }
         })
