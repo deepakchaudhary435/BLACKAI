@@ -1,4 +1,4 @@
-import MessageDigest
+import java.security.MessageDigest
 import java.net.URL
 
 plugins {
