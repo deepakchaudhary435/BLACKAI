@@ -176,6 +176,7 @@ class MainActivity : Activity() {
         val contacts=createPage("contacts","👥 Trusted Contacts","अपने भरोसेमंद संपर्क मैनेज करें")
         action(contacts,"भरोसेमंद संपर्क जोड़ें") { addTrustedContact() }
         action(contacts,"मेरे भरोसेमंद संपर्क देखें") { showTrustedContacts() }
+        action(contacts,"Trusted Contact को कॉल करें","Dialer खुलेगा; कॉल आप स्वयं शुरू करेंगे") { callTrustedContact() }
 
         val assistant=createPage("assistant","🤖 BLACKAI Assistant","AI Chat और History")
         info(assistant,"AI जवाब इंटरनेट और उपलब्ध सेवा पर निर्भर करते हैं।")
@@ -1043,6 +1044,42 @@ class MainActivity : Activity() {
                         Toast.makeText(this, "संपर्क हटा दिया गया।", Toast.LENGTH_SHORT).show()
                     }.show()
             }.setNegativeButton("बंद करें", null).show()
+    }
+
+    private fun callTrustedContact() {
+        val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (arr.length() == 0) {
+            Toast.makeText(this, "पहले Trusted Contact जोड़ें।", Toast.LENGTH_LONG).show()
+            return
+        }
+        val labels = (0 until arr.length()).map { i ->
+            val item = arr.getJSONObject(i)
+            "${item.optString("name")} — ${item.optString("phone")}"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("किस Trusted Contact को कॉल करना है?")
+            .setItems(labels.toTypedArray()) { _, which ->
+                val item = arr.getJSONObject(which)
+                val phone = item.optString("phone").trim()
+                if (phone.isBlank()) {
+                    Toast.makeText(this, "इस संपर्क का नंबर उपलब्ध नहीं है।", Toast.LENGTH_LONG).show()
+                    return@setItems
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("कॉल की पुष्टि")
+                    .setMessage("${item.optString("name")} को फोन के Dialer में खोलें? कॉल शुरू करने के लिए आपको स्वयं Call दबाना होगा।")
+                    .setNegativeButton("रद्द करें", null)
+                    .setPositiveButton("Dialer खोलें") { _, _ ->
+                        logEmergencyAction("Trusted Contact के लिए Dialer खोला")
+                        try {
+                            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}")))
+                        } catch (_: Exception) {
+                            Toast.makeText(this, "Dialer उपलब्ध नहीं है।", Toast.LENGTH_LONG).show()
+                        }
+                    }.show()
+            }
+            .setNegativeButton("बंद करें", null)
+            .show()
     }
 
     private val emergencyLocationPermissionRequest = 72
