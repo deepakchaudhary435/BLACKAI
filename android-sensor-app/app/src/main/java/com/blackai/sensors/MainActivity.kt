@@ -21,6 +21,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.CountDownTimer
 import android.os.Looper
 import android.widget.Button
 import android.widget.LinearLayout
@@ -62,6 +63,8 @@ class MainActivity : Activity() {
     private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var lastShakeAlertAt = 0L
+    private var sosCountdown: CountDownTimer? = null
+    private var sosCountdownDialog: AlertDialog? = null
     private val shakeSensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private val shakeListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
@@ -157,10 +160,11 @@ class MainActivity : Activity() {
         action(safety,"Voice Detection बंद करें") { stopService(Intent(this,VoiceMonitorService::class.java)); status.text="Voice Detection बंद करने का अनुरोध भेजा गया।"; refreshDashboard() }
 
         val emergency=createPage("emergency","🚨 Emergency & SOS","आपातकालीन सहायता के लिए जरूरी टूल")
-        info(emergency,"BLACKAI अपने आप पुलिस या संपर्कों को कॉल/SMS नहीं भेजता। SMS भेजने से पहले आप संदेश जाँचेंगे।")
+        info(emergency,"SOS Countdown केवल ऐप में दिखाई देने वाला 15 सेकंड का स्थानीय अलर्ट है। पूरा होने पर Emergency SMS की पुष्टि स्क्रीन खुलेगी; संदेश भेजना और कॉल करना आपके नियंत्रण में रहेगा। BLACKAI अपने आप पुलिस या संपर्कों को कॉल/SMS नहीं भेजता।")
         action(emergency,"112 Emergency Call","फोन का Dialer खुलेगा") { confirmEmergencyDial() }
         action(emergency,"Emergency Control Center") { showEmergencyControlCenter() }
         action(emergency,"🆘 ONE-TAP SOS","पहले पुष्टि करें, फिर SMS ऐप खुलेगा") { confirmEmergencyAlert() }
+        action(emergency,"⏱️ SOS Countdown — 15 सेकंड","गलत अलर्ट हो तो रद्द करें; बाद में SMS की पुष्टि जरूरी") { startSosCountdown() }
         action(emergency,"📍 SOS + Current Location","एक बार की लोकेशन SMS में जोड़ें") { prepareEmergencySmsWithLocation() }
         action(emergency,"📳 Shake Alert","ऐप खुला रहने पर तेज़ shake पहचानें") { showShakeAlertInfo() }
         action(emergency,"📴 Offline SMS Mode","इंटरनेट के बिना SMS ऐप में संदेश तैयार करें") { prepareEmergencySms() }
@@ -382,6 +386,10 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        sosCountdown?.cancel()
+        sosCountdown = null
+        sosCountdownDialog?.dismiss()
+        sosCountdownDialog = null
         aiScope.cancel()
         super.onDestroy()
     }
@@ -1152,6 +1160,47 @@ class MainActivity : Activity() {
                 try { startActivity(intent) }
                 catch (_: Exception) { Toast.makeText(this, "SMS ऐप उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
             }.show()
+    }
+
+    private fun startSosCountdown() {
+        if (sosCountdown != null) {
+            Toast.makeText(this, "SOS Countdown पहले से चल रहा है।", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val countdownText = TextView(this).apply {
+            text = "15 सेकंड में SOS विकल्प खुलेगा।\nगलत अलर्ट हो तो नीचे रद्द करें।"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setPadding(36, 28, 36, 28)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("BLACKAI — SOS Countdown")
+            .setView(countdownText)
+            .setNegativeButton("मैं सुरक्षित हूँ — रद्द करें") { _, _ ->
+                sosCountdown?.cancel()
+                sosCountdown = null
+                logEmergencyAction("SOS Countdown उपयोगकर्ता ने रद्द किया")
+                Toast.makeText(this, "SOS Countdown रद्द हुआ। कोई संदेश या कॉल नहीं भेजी गई।", Toast.LENGTH_LONG).show()
+            }
+            .create()
+        dialog.setCancelable(false)
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.show()
+        sosCountdownDialog = dialog
+        logEmergencyAction("15 सेकंड SOS Countdown शुरू")
+        sosCountdown = object : CountDownTimer(15000L, 1000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val seconds = ((millisUntilFinished + 999L) / 1000L).toInt()
+                countdownText.text = "$seconds सेकंड में SOS विकल्प खुलेगा।\\nगलत अलर्ट हो तो अभी रद्द करें।"
+            }
+            override fun onFinish() {
+                sosCountdown = null
+                sosCountdownDialog = null
+                if (dialog.isShowing) dialog.dismiss()
+                logEmergencyAction("SOS Countdown पूरा; Emergency SMS पुष्टि स्क्रीन खोली")
+                if (!isFinishing && !isDestroyed) confirmEmergencyAlert()
+            }
+        }.start()
     }
 
     private fun showShakeAlertInfo() {
