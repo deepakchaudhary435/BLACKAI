@@ -129,36 +129,30 @@ class VoiceMonitorService : Service(), RecognitionListener {
         retryCount = 0
         if (found != null) {
             val now = SystemClock.elapsedRealtime()
-            // Android can report whether this phone is actively playing media.
-            // If playback is active, suppress this phrase match to reduce alerts
-            // caused by audio from music/video/radio apps. This cannot identify
-            // TV/radio audio from another device or prove the source of a voice.
-            if (isPhoneMediaPlaybackActive()) {
-                lastMatchedPhrase = ""
-                lastMatchedAt = 0L
-                peakSpeechLevel = 0f
-                updateNotification("फोन में media playback चालू है; मदद-जैसा phrase मिला लेकिन alert रिकॉर्ड नहीं किया गया। बाहरी TV/Radio की पहचान पक्की नहीं हो सकती।")
-            } else {
-                val normalized = found.lowercase(Locale.ROOT).trim()
-                // Repeated identical phrases are only a weak additional media hint.
-                val repeatedLikeMedia = normalized == lastMatchedPhrase &&
-                    now - lastMatchedAt in 1_000L..45_000L
-                // Repetition alone cannot prove that audio came from TV/radio:
-                // a real person may repeat a help phrase. Keep it as an uncertain
-                // signal instead of silently discarding it.
-                recordPossibleVoiceAlert(
-                    found,
-                    false,
-                    peakSpeechLevel,
-                    if (repeatedLikeMedia) "दोहराव मिला; स्रोत अनिश्चित (मीडिया-जैसा संकेत)" else "स्रोत अनिश्चित"
-                )
-                if (repeatedLikeMedia) {
-                    updateNotification("एक जैसा मदद वाला phrase दोहराया गया। स्रोत अनिश्चित है; इसे TV/Radio साबित नहीं माना गया।")
-                }
-                lastMatchedPhrase = normalized
-                lastMatchedAt = now
-                peakSpeechLevel = 0f
+            // Phone media playback is only a weak context hint. It must NEVER
+            // suppress a possible distress phrase: a real person may be asking
+            // for help while a TV, radio, or phone is playing nearby.
+            val phoneMediaActive = isPhoneMediaPlaybackActive()
+            val normalized = found.lowercase(Locale.ROOT).trim()
+            val repeatedLikeMedia = normalized == lastMatchedPhrase &&
+                now - lastMatchedAt in 1_000L..45_000L
+            val sourceHint = when {
+                phoneMediaActive && repeatedLikeMedia ->
+                    "फोन media playback चालू; दोहराव मिला; स्रोत अनिश्चित"
+                phoneMediaActive ->
+                    "फोन media playback चालू; फिर भी वास्तविक मदद की संभावना खारिज नहीं"
+                repeatedLikeMedia ->
+                    "दोहराव मिला; स्रोत अनिश्चित (मीडिया-जैसा संकेत)"
+                else -> "स्रोत अनिश्चित"
             }
+            // Keep the candidate for review regardless of media playback.
+            recordPossibleVoiceAlert(found, false, peakSpeechLevel, sourceHint)
+            if (repeatedLikeMedia) {
+                updateNotification("मदद-जैसा phrase दोहराया गया। मीडिया-जैसा संकेत है, लेकिन TV/Radio की पुष्टि नहीं हुई और alert दबाया नहीं गया।")
+            }
+            lastMatchedPhrase = normalized
+            lastMatchedAt = now
+            peakSpeechLevel = 0f
         } else if (matches.isNotEmpty()) {
             // Privacy-preserving diagnostic: report that text alternatives arrived,
             // without displaying or storing the words spoken in the environment.
