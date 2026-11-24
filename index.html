@@ -432,6 +432,7 @@ input{
 </script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
 <script>
 const firebaseConfig = {
  apiKey: "AIzaSyDlymowey_AyTDqmv_46CVITCYi1CpBmDc",
@@ -1582,13 +1583,13 @@ async function loadBLACKAIUserAnalytics(){
 // Admin report list auto-refresh listener (Firebase Realtime Database)
 let blackaiAdminTicketsListener=null;
 function startBLACKAIAdminLiveUpdates(user){
- if(blackaiAdminTicketsListener){
-  liveDB.ref("supportTickets").off("value",blackaiAdminTicketsListener);
+ if(blackaiAdminTicketsListener && typeof blackaiAdminTicketsListener==="function"){
+  blackaiAdminTicketsListener();
   blackaiAdminTicketsListener=null;
  }
  if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID)return;
- blackaiAdminTicketsListener=()=>{loadBLACKAIAdminTickets();};
- liveDB.ref("supportTickets").on("value",blackaiAdminTicketsListener);
+ blackaiAdminTicketsListener=firebase.firestore().collection("supportTickets")
+  .orderBy("createdAt","desc").onSnapshot(()=>loadBLACKAIAdminTickets(),()=>{});
 }
 // BLACKAI Help & Support functions
 const BLACKAI_SUPPORT_ADMIN_UID = "YbAdMPt1pYP74CzKCSNnCmmyTG73";
@@ -1626,37 +1627,28 @@ async function loadBLACKAISupport(){
  if(adminPanel)adminPanel.style.display=user.uid===BLACKAI_SUPPORT_ADMIN_UID?"block":"none";
  if(mine)mine.textContent="रिपोर्ट लोड हो रही हैं…";
  try{
-  const [ticketSnap,replySnap]=await Promise.all([
-   liveDB.ref("supportTickets/"+user.uid).once("value"),
-   liveDB.ref("supportReplies/"+user.uid).once("value")
-  ]);
+  const snap=await firebase.firestore().collection("supportTickets")
+   .where("userId","==",user.uid).orderBy("createdAt","desc").limit(50).get();
   if(!mine)return;
   mine.innerHTML="";
-  const tickets=ticketSnap.val()||{},replies=replySnap.val()||{};
-  const seenReplies=blackaiReplySeenMap(user.uid);
-  let unreadReplies=0;
-  Object.entries(replies).forEach(([id,reply])=>{if(reply&&reply.message&&(Number(reply.createdAt)||0)>(Number(seenReplies[id])||0))unreadReplies++;});
+  const docs=snap.docs||[];
   const replyNotice=document.getElementById("blackaiReplyNotice");
-  if(replyNotice)replyNotice.textContent="🔔 नए जवाब: "+unreadReplies+(unreadReplies?" — Admin ने जवाब दिया है।":" — कोई नया जवाब नहीं है।");
-  const entries=Object.entries(tickets).sort((a,b)=>(Number(b[1]?.createdAt)||0)-(Number(a[1]?.createdAt)||0));
-  if(!entries.length){mine.appendChild(blackaiSupportNode("div","अभी आपने कोई रिपोर्ट नहीं भेजी है।","contact"));return;}
-  entries.forEach(([id,ticket])=>{
+  const unread=docs.filter(d=>{const x=d.data()||{};return !!x.adminReply && Number(x.adminReplyAt||0)>Number(blackaiReplySeenMap(user.uid)[d.id]||0);}).length;
+  if(replyNotice)replyNotice.textContent="🔔 नए जवाब: "+unread+(unread?" — Admin ने जवाब दिया है।":" — कोई नया जवाब नहीं है।");
+  if(!docs.length){mine.appendChild(blackaiSupportNode("div","अभी Firestore में कोई नई रिपोर्ट नहीं है। पुरानी रिपोर्टें पुराने डेटाबेस में सुरक्षित हैं।","contact"));}
+  docs.forEach(doc=>{
+   const ticket=doc.data()||{};
    const card=blackaiSupportNode("div","","contact");card.dataset.ticketCard="true";card.style.cssText="display:block;margin:10px 0;padding:12px";
    card.appendChild(blackaiSupportNode("b","आपकी रिपोर्ट"));
    const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
    card.appendChild(blackaiSupportNode("small","भेजने का समय: "+blackaiSupportDate(ticket.createdAt)));
-   const reply=replies[id];
-   const statusText=reply&&reply.status?reply.status:"Pending";
-   const statusLine=blackaiSupportNode("p","स्थिति: "+statusText);
-   statusLine.style.cssText="color:#f0c674;margin-top:8px;font-weight:bold";
-   card.appendChild(statusLine);
-   const priorityText=reply&&reply.priority?reply.priority:"Medium";
-   const priorityLine=blackaiSupportNode("p","Priority: "+priorityText);
-   priorityLine.style.cssText="color:#f0c674;margin-top:6px;font-weight:bold";
-   card.appendChild(priorityLine);
-   if(reply&&reply.message){
-    const r=blackaiSupportNode("p","Admin का जवाब: "+String(reply.message));r.style.cssText="white-space:pre-wrap;color:#8fe0ae;margin-top:10px";card.appendChild(r);
-    card.appendChild(blackaiSupportNode("small","जवाब का समय: "+blackaiSupportDate(reply.createdAt)));
+   const statusLine=blackaiSupportNode("p","स्थिति: "+String(ticket.status||"Pending"));
+   statusLine.style.cssText="color:#f0c674;margin-top:8px;font-weight:bold";card.appendChild(statusLine);
+   const priorityLine=blackaiSupportNode("p","Priority: "+String(ticket.priority||"Medium"));
+   priorityLine.style.cssText="color:#f0c674;margin-top:6px;font-weight:bold";card.appendChild(priorityLine);
+   if(ticket.adminReply){
+    const reply=blackaiSupportNode("p","Admin का जवाब: "+String(ticket.adminReply));reply.style.cssText="white-space:pre-wrap;color:#8fe0ae;margin-top:10px";card.appendChild(reply);
+    card.appendChild(blackaiSupportNode("small","जवाब का समय: "+blackaiSupportDate(ticket.adminReplyAt)));
    }else card.appendChild(blackaiSupportNode("p","अभी जवाब नहीं आया है।"));
    mine.appendChild(card);
   });
@@ -1664,9 +1656,9 @@ async function loadBLACKAISupport(){
   if(userSearch)userSearch.oninput=()=>filterBLACKAISupportCards("blackaiUserSupportSearch","mySupportTickets");
   filterBLACKAISupportCards("blackaiUserSupportSearch","mySupportTickets");
  }catch(e){
-  if(mine)mine.textContent="रिपोर्ट लोड नहीं हुईं। Firebase Rules और इंटरनेट कनेक्शन जांचें।";
+  if(mine)mine.textContent="रिपोर्ट नहीं खुलीं। Firestore Rules लागू हैं या नहीं, जाँचें।";
  }
- if(user.uid===BLACKAI_SUPPORT_ADMIN_UID)loadBLACKAIAdminTickets();
+ if(user.uid===BLACKAI_SUPPORT_ADMIN_UID)await loadBLACKAIAdminTickets();
 }
 async function sendBLACKAISupportTicket(){
  const user=auth.currentUser,field=document.getElementById("supportMessage"),status=document.getElementById("supportStatus"),button=document.getElementById("supportSendBtn");
@@ -1676,12 +1668,14 @@ async function sendBLACKAISupportTicket(){
  if(message.length>2000){status.textContent="रिपोर्ट 2000 अक्षरों से छोटी रखें।";return;}
  button.disabled=true;status.textContent="रिपोर्ट भेजी जा रही है…";
  try{
-  const ref=liveDB.ref("supportTickets/"+user.uid).push();
-  await ref.set({userId:user.uid,message:message,createdAt:Date.now()});
-  field.value="";status.textContent="आपकी रिपोर्ट Admin तक सुरक्षित रूप से भेज दी गई है।";
+  await firebase.firestore().collection("supportTickets").add({
+   userId:user.uid,message,createdAt:Date.now(),status:"Pending",
+   priority:"Medium",adminReply:"",adminReplyAt:0
+  });
+  field.value="";status.textContent="आपकी नई रिपोर्ट Firestore में भेज दी गई है।";
   await loadBLACKAISupport();
  }catch(e){
-  status.textContent="रिपोर्ट नहीं भेजी जा सकी। Firebase Rules/इंटरनेट जांचें और फिर कोशिश करें।";
+  status.textContent="रिपोर्ट नहीं भेजी जा सकी। Firestore Rules अभी लागू न हों तो यह सामान्य है।";
  }finally{button.disabled=false;}
 }
 async function loadBLACKAIRecycleBin(){
@@ -1717,118 +1711,46 @@ async function loadBLACKAIRecycleBin(){
 async function loadBLACKAIAdminTickets(){
  const user=auth.currentUser,area=document.getElementById("allSupportTickets");
  if(!user||user.uid!==BLACKAI_SUPPORT_ADMIN_UID){if(area)area.textContent="Admin अनुमति आवश्यक है।";return;}
- area.textContent="सभी रिपोर्ट लोड हो रही हैं…";
+ if(!area)return;
+ area.textContent="Firestore रिपोर्ट लोड हो रही हैं…";
  try{
-  const [ticketsSnap,repliesSnap]=await Promise.all([
-   liveDB.ref("supportTickets").once("value"),
-   liveDB.ref("supportReplies").once("value")
-  ]);
-  const tickets=ticketsSnap.val()||{},replies=repliesSnap.val()||{};
-  const seenIds=blackaiSupportSeenIds(),unseenIds=[];
-  Object.entries(tickets).forEach(([uid,userTickets])=>Object.keys(userTickets||{}).forEach(id=>{if(!seenIds.has(uid+"/"+id))unseenIds.push(uid+"/"+id);}));
-  const notice=document.getElementById("blackaiNewReportNotice");
-  if(notice)notice.textContent="🔔 नई रिपोर्ट: "+unseenIds.length+(unseenIds.length?" — "+unseenIds.length+" रिपोर्ट अभी नहीं देखी गई हैं।":" — सभी रिपोर्ट देख ली गई हैं।");
+  const snap=await firebase.firestore().collection("supportTickets").orderBy("createdAt","desc").limit(200).get();
+  const docs=snap.docs||[];
   area.innerHTML="";
-  let count=0;
-  const totals={all:0,pending:0,inProgress:0,solved:0};
-  Object.entries(tickets).forEach(([uid,userTickets])=>{
-   Object.entries(userTickets||{}).forEach(([ticketId])=>{
-    totals.all++;
-    const reply=replies[uid]&&replies[uid][ticketId];
-    const status=reply&&reply.status?reply.status:"Pending";
-    if(status==="Solved")totals.solved++;
-    else if(status==="In Progress")totals.inProgress++;
-    else totals.pending++;
-   });
-  });
+  const totals={all:docs.length,pending:0,inProgress:0,solved:0};
+  docs.forEach(d=>{const st=String((d.data()||{}).status||"Pending");if(st==="Solved")totals.solved++;else if(st==="In Progress")totals.inProgress++;else totals.pending++;});
   const summary=blackaiSupportNode("div","","contact");
   summary.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0;padding:12px";
-  [["कुल रिपोर्ट",totals.all],["Pending",totals.pending],["In Progress",totals.inProgress],["Solved",totals.solved]].forEach(([label,value])=>{
-   const item=blackaiSupportNode("div",label+": "+value);
-   item.style.cssText="padding:10px;background:#171b23;border-radius:8px;font-weight:bold;text-align:center";
-   summary.appendChild(item);
-  });
+  [["कुल नई रिपोर्ट",totals.all],["Pending",totals.pending],["In Progress",totals.inProgress],["Solved",totals.solved]].forEach(([label,value])=>{const item=blackaiSupportNode("div",label+": "+value);item.style.cssText="padding:10px;background:#171b23;border-radius:8px;font-weight:bold;text-align:center";summary.appendChild(item);});
   area.appendChild(summary);
-  Object.entries(tickets).forEach(([uid,userTickets])=>{
-   Object.entries(userTickets||{}).forEach(([ticketId,ticket])=>{
-    count++;
-    const card=blackaiSupportNode("div","","contact");card.dataset.ticketCard="true";card.style.cssText="display:block;margin:10px 0;padding:12px";
-    if(!seenIds.has(uid+"/"+ticketId)){
-     const fresh=blackaiSupportNode("span","🔔 नई रिपोर्ट");
-     fresh.style.cssText="display:inline-block;margin:0 0 8px 8px;padding:4px 8px;border-radius:6px;background:#7a2424;color:white;font-weight:bold";
-     card.appendChild(fresh);
-    }
-    card.appendChild(blackaiSupportNode("b","यूज़र UID: "+uid));
-    const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
-    card.appendChild(blackaiSupportNode("small","समय: "+blackaiSupportDate(ticket.createdAt)));
-    const waText="BLACKAI पर नई सहायता रिपोर्ट मिली है।\nयूज़र UID: "+uid+"\nरिपोर्ट: "+String(ticket.message||"")+"\nसमय: "+blackaiSupportDate(ticket.createdAt)+"\nAdmin Panel: "+location.href;
-    const waShare=document.createElement("a");
-    waShare.href="https://wa.me/?text="+encodeURIComponent(waText);
-    waShare.target="_blank";waShare.rel="noopener noreferrer";
-    waShare.textContent="WhatsApp पर रिपोर्ट साझा करें";
-    waShare.className="sensor-connect";
-    waShare.style.cssText="display:inline-block;text-decoration:none;margin-top:10px";
-    card.appendChild(waShare);
-    const previous=replies[uid]&&replies[uid][ticketId];
-    const statusSelect=document.createElement("select");
-    statusSelect.style.cssText="display:block;width:100%;margin-top:12px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";
-    [["Pending","Pending"],["In Progress","In Progress"],["Solved","Solved"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent="स्थिति: "+label;statusSelect.appendChild(option);});
-    statusSelect.value=previous&&previous.status?previous.status:"Pending";
-    statusSelect.onchange=async()=>{
-     statusSelect.disabled=true;
-     try{await liveDB.ref("supportReplies/"+uid+"/"+ticketId+"/status").set(statusSelect.value);
-      statusSelect.style.borderColor="#58c98b";
-     }catch(e){alert("स्थिति सेव नहीं हुई। Firebase Rules जांचें।");statusSelect.value=previous&&previous.status?previous.status:"Pending";}
-     finally{statusSelect.disabled=false;}
-    };
-    card.appendChild(statusSelect);
-    const prioritySelect=document.createElement("select");
-    prioritySelect.style.cssText="display:block;width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";
-    [["High","🔴 High – बहुत जरूरी"],["Medium","🟠 Medium – सामान्य"],["Low","🟢 Low – कम जरूरी"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent=label;prioritySelect.appendChild(option);});
-    prioritySelect.value=previous&&previous.priority?previous.priority:"Medium";
-    prioritySelect.onchange=async()=>{
-     prioritySelect.disabled=true;
-     try{await liveDB.ref("supportReplies/"+uid+"/"+ticketId+"/priority").set(prioritySelect.value);prioritySelect.style.borderColor="#58c98b";}
-     catch(e){alert("Priority सेव नहीं हुई। Firebase Rules जांचें।");prioritySelect.value=previous&&previous.priority?previous.priority:"Medium";}
-     finally{prioritySelect.disabled=false;}
-    };
-    card.appendChild(prioritySelect);
-    if(previous&&previous.message){const old=blackaiSupportNode("p","पहला जवाब: "+String(previous.message));old.style.whiteSpace="pre-wrap";card.appendChild(old);}
-    const replyBox=document.createElement("textarea");replyBox.rows=2;replyBox.maxLength=2000;replyBox.placeholder="यूज़र को जवाब लिखें…";replyBox.style.cssText="width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";card.appendChild(replyBox);
-    const send=document.createElement("button");send.type="button";send.textContent="जवाब भेजें";send.className="sensor-connect";
-    send.onclick=async()=>{
-     const answer=replyBox.value.trim();if(answer.length<2){alert("जवाब लिखें।");return;}
-     send.disabled=true;
-     try{
-      await liveDB.ref("supportReplies/"+uid+"/"+ticketId).update({message:answer,createdAt:Date.now(),adminUid:user.uid});
-      send.textContent="जवाब भेज दिया";replyBox.value="";
-     }catch(e){alert("जवाब नहीं भेजा जा सका। Firebase Rules जांचें।");send.disabled=false;}
-    };
-    card.appendChild(send);
-    const removeTicket=document.createElement("button");removeTicket.type="button";removeTicket.textContent="रिपोर्ट डिलीट करें";removeTicket.className="sensor-connect";removeTicket.style.cssText="display:block;margin-top:10px;background:#7a2424";
-    removeTicket.onclick=async()=>{
-     if(!auth.currentUser||auth.currentUser.uid!==BLACKAI_SUPPORT_ADMIN_UID){alert("Admin अनुमति आवश्यक है।");return;}
-     if(!confirm("रिपोर्ट Recycle Bin में भेजें? वहाँ से बाद में वापस ला सकते हैं।"))return;
-     removeTicket.disabled=true;
-     try{
-      const replySnap=await liveDB.ref("supportReplies/"+uid+"/"+ticketId).once("value");
-      const recycleData={ticket:ticket,reply:replySnap.val()||null,deletedAt:Date.now(),deletedBy:user.uid};
-      await liveDB.ref("recycleBin/"+uid+"/"+ticketId).set(recycleData);
-      await liveDB.ref("supportTickets/"+uid+"/"+ticketId).remove();
-      await liveDB.ref("supportReplies/"+uid+"/"+ticketId).remove();
-      card.remove();loadBLACKAIAdminTickets();
-     }catch(e){removeTicket.disabled=false;alert("Recycle Bin में नहीं जा सका। Firebase Rules में recycleBin की Admin अनुमति जाँचें।")}
-    };
-    card.appendChild(removeTicket);area.appendChild(card);
-   });
-  const adminSearch=document.getElementById("blackaiAdminSupportSearch");
-  if(adminSearch)adminSearch.oninput=()=>filterBLACKAISupportCards("blackaiAdminSupportSearch","allSupportTickets");
-  filterBLACKAISupportCards("blackaiAdminSupportSearch","allSupportTickets");
+  if(!docs.length)area.appendChild(blackaiSupportNode("div","Firestore में अभी कोई नई रिपोर्ट नहीं है। पुराने टिकट Realtime Database में सुरक्षित हैं।","contact"));
+  docs.forEach(doc=>{
+   const ticket=doc.data()||{};
+   const card=blackaiSupportNode("div","","contact");card.dataset.ticketCard="true";card.style.cssText="display:block;margin:10px 0;padding:12px";
+   card.appendChild(blackaiSupportNode("b","यूज़र UID: "+String(ticket.userId||"")));
+   const msg=blackaiSupportNode("p",String(ticket.message||""));msg.style.whiteSpace="pre-wrap";card.appendChild(msg);
+   card.appendChild(blackaiSupportNode("small","समय: "+blackaiSupportDate(ticket.createdAt)));
+   const statusSelect=document.createElement("select");
+   statusSelect.style.cssText="display:block;width:100%;margin-top:12px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";
+   [["Pending","Pending"],["In Progress","In Progress"],["Solved","Solved"]].forEach(([value,label])=>{const o=document.createElement("option");o.value=value;o.textContent="स्थिति: "+label;statusSelect.appendChild(o);});
+   statusSelect.value=ticket.status||"Pending";
+   statusSelect.onchange=async()=>{statusSelect.disabled=true;try{await doc.ref.update({status:statusSelect.value});statusSelect.style.borderColor="#58c98b";}catch(e){alert("स्थिति सेव नहीं हुई। Firestore Rules जाँचें।");statusSelect.value=ticket.status||"Pending";}finally{statusSelect.disabled=false;}};
+   card.appendChild(statusSelect);
+   const prioritySelect=document.createElement("select");
+   prioritySelect.style.cssText="display:block;width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";
+   [["High","🔴 High – बहुत जरूरी"],["Medium","🟠 Medium – सामान्य"],["Low","🟢 Low – कम जरूरी"]].forEach(([value,label])=>{const o=document.createElement("option");o.value=value;o.textContent=label;prioritySelect.appendChild(o);});
+   prioritySelect.value=ticket.priority||"Medium";
+   prioritySelect.onchange=async()=>{prioritySelect.disabled=true;try{await doc.ref.update({priority:prioritySelect.value});prioritySelect.style.borderColor="#58c98b";}catch(e){alert("Priority सेव नहीं हुई। Firestore Rules जाँचें।");prioritySelect.value=ticket.priority||"Medium";}finally{prioritySelect.disabled=false;}};
+   card.appendChild(prioritySelect);
+   if(ticket.adminReply){const old=blackaiSupportNode("p","पहला जवाब: "+String(ticket.adminReply));old.style.whiteSpace="pre-wrap";card.appendChild(old);}
+   const replyBox=document.createElement("textarea");replyBox.rows=2;replyBox.maxLength=2000;replyBox.placeholder="यूज़र को जवाब लिखें…";replyBox.style.cssText="width:100%;margin-top:10px;padding:10px;background:#171b23;color:white;border:1px solid #444;border-radius:8px";card.appendChild(replyBox);
+   const send=document.createElement("button");send.type="button";send.textContent="जवाब भेजें";send.className="sensor-connect";
+   send.onclick=async()=>{const answer=replyBox.value.trim();if(answer.length<2){alert("जवाब लिखें।");return;}send.disabled=true;try{await doc.ref.update({adminReply:answer,adminReplyAt:Date.now()});send.textContent="जवाब भेज दिया";replyBox.value="";}catch(e){alert("जवाब नहीं भेजा जा सका। Firestore Rules जाँचें।");send.disabled=false;}};
+   card.appendChild(send);
+   const wa=document.createElement("a");wa.href="https://wa.me/?text="+encodeURIComponent("BLACKAI सहायता रिपोर्ट\nयूज़र UID: "+String(ticket.userId||"")+"\nरिपोर्ट: "+String(ticket.message||""));wa.target="_blank";wa.rel="noopener noreferrer";wa.textContent="WhatsApp पर रिपोर्ट साझा करें";wa.className="sensor-connect";wa.style.cssText="display:inline-block;text-decoration:none;margin:10px 0 0 8px";card.appendChild(wa);
+   area.appendChild(card);
   });
-  if(!count)area.appendChild(blackaiSupportNode("div","अभी कोई यूज़र रिपोर्ट नहीं आई है।","contact"));
- }catch(e){
-  area.textContent="Admin रिपोर्ट लोड नहीं हुईं। Firebase Rules में Admin को supportTickets और supportReplies पढ़ने की अनुमति दें।";
- }
+ }catch(e){area.textContent="Firestore रिपोर्ट नहीं खुलीं। Firestore Rules और Admin UID अनुमति जाँचें।";}
 }
 
 </script>
