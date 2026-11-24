@@ -136,8 +136,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
             recordPossibleVoiceAlert(found, repeatedLikeMedia, peakSpeechLevel)
             lastMatchedPhrase = normalized
             lastMatchedAt = now
-        }
-        peakSpeechLevel = 0f
+            peakSpeechLevel = 0f
         } else if (matches.isNotEmpty()) {
             // Privacy-preserving diagnostic: report that text alternatives arrived,
             // without displaying or storing the words spoken in the environment.
