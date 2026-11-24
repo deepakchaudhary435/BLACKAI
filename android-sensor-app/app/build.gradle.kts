@@ -1,3 +1,6 @@
+import MessageDigest
+import java.net.URL
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -60,14 +63,14 @@ val downloadYamnetAssets by tasks.registering {
         val dir = assetsDir.asFile.apply { mkdirs() }
         fun fetch(url: String, name: String, expectedSha256: String) {
             val target = dir.resolve(name)
-            if (target.exists() && java.security.MessageDigest.getInstance("SHA-256")
+            if (target.exists() && MessageDigest.getInstance("SHA-256")
                     .digest(target.readBytes()).joinToString("") { "%02x".format(it) } == expectedSha256) return
             val temp = dir.resolve("$name.download")
-            java.net.URL(url).openConnection().apply {
-                connectTimeout = 20000
-                readTimeout = 60000
-            }.getInputStream().use { input -> temp.outputStream().use { output -> input.copyTo(output) } }
-            val actual = java.security.MessageDigest.getInstance("SHA-256")
+            val connection = URL(url).openConnection()
+            connection.connectTimeout = 20000
+            connection.readTimeout = 60000
+            connection.getInputStream().use { input -> temp.outputStream().use { output -> input.copyTo(output) } }
+            val actual = MessageDigest.getInstance("SHA-256")
                 .digest(temp.readBytes()).joinToString("") { "%02x".format(it) }
             if (actual != expectedSha256) {
                 temp.delete()
