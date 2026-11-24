@@ -11,6 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.os.Bundle
+import android.media.AudioManager
 import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
@@ -128,15 +129,29 @@ class VoiceMonitorService : Service(), RecognitionListener {
         retryCount = 0
         if (found != null) {
             val now = SystemClock.elapsedRealtime()
-            val normalized = found.lowercase(Locale.ROOT).trim()
-            // Repeated identical phrases can indicate TV/radio playback. This is only
-            // a conservative media-likelihood hint, never a reliable source detector.
-            val repeatedLikeMedia = normalized == lastMatchedPhrase &&
-                now - lastMatchedAt in 1_000L..45_000L
-            recordPossibleVoiceAlert(found, repeatedLikeMedia, peakSpeechLevel)
-            lastMatchedPhrase = normalized
-            lastMatchedAt = now
-            peakSpeechLevel = 0f
+            // Android can report whether this phone is actively playing media.
+            // If playback is active, suppress this phrase match to reduce alerts
+            // caused by audio from music/video/radio apps. This cannot identify
+            // TV/radio audio from another device or prove the source of a voice.
+            if (isPhoneMediaPlaybackActive()) {
+                lastMatchedPhrase = ""
+                lastMatchedAt = 0L
+                peakSpeechLevel = 0f
+                updateNotification("फोन में media playback चालू है; मदद-जैसा phrase मिला लेकिन alert रिकॉर्ड नहीं किया गया। बाहरी TV/Radio की पहचान पक्की नहीं हो सकती।")
+            } else {
+                val normalized = found.lowercase(Locale.ROOT).trim()
+                // Repeated identical phrases are only a weak additional media hint.
+                val repeatedLikeMedia = normalized == lastMatchedPhrase &&
+                    now - lastMatchedAt in 1_000L..45_000L
+                if (!repeatedLikeMedia) {
+                    recordPossibleVoiceAlert(found, false, peakSpeechLevel)
+                } else {
+                    updateNotification("एक जैसा phrase दोबारा मिला; media-जैसा संदेह है। कोई SOS नहीं भेजा गया।")
+                }
+                lastMatchedPhrase = normalized
+                lastMatchedAt = now
+                peakSpeechLevel = 0f
+            }
         } else if (matches.isNotEmpty()) {
             // Privacy-preserving diagnostic: report that text alternatives arrived,
             // without displaying or storing the words spoken in the environment.
@@ -144,6 +159,15 @@ class VoiceMonitorService : Service(), RecognitionListener {
         }
         retryHandler.removeCallbacks(retryAction)
         retryHandler.postDelayed(retryAction, 500L)
+    }
+
+    private fun isPhoneMediaPlaybackActive(): Boolean {
+        return try {
+            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+            audioManager.isMusicActive
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun recordPossibleVoiceAlert(spoken: String, mediaLike: Boolean, peakLevel: Float) {
