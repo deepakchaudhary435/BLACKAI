@@ -149,7 +149,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
 
     private fun recordPossibleVoiceAlert(spoken: String, mediaLike: Boolean, peakLevel: Float) {
         val nowElapsed = SystemClock.elapsedRealtime()
-        if (nowElapsed - lastMatchAt < 60_000L) return
+        if (!mediaLike && nowElapsed - lastMatchAt < 60_000L) return
         lastMatchAt = nowElapsed
         val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
         val timestamp = System.currentTimeMillis()
