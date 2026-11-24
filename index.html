@@ -216,7 +216,13 @@ input{
 </div>
 
 
-<div id="liveViewer" style="display:none;max-width:520px;margin:8vh auto;background:#171b23;border:1px solid #303440;border-radius:18px;padding:22px"><h1 style="color:#ed354d">BLACKAI Live Location</h1><p id="liveViewerStatus">लोकेशन लोड हो रही है…</p><a id="liveViewerMap" target="_blank" rel="noopener" style="display:none;color:#8ec5ff">Google Maps पर लोकेशन देखें</a><p style="color:#9ba4b3;font-size:12px">यह लिंक अधिकतम 5 घंटे के लिए है। लोकेशन अपडेट तभी आएगी जब शेयर करने वाले का पेज और लोकेशन सेवा सक्रिय हों।</p></div>
+<div id="liveViewer" style="display:none;max-width:620px;margin:4vh auto;background:linear-gradient(155deg,#17263a,#10151e);border:1px solid #3b5878;border-radius:22px;padding:20px;box-shadow:0 14px 38px #0008">
+ <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="blackai-logo.svg" alt="BLACKAI" style="width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 0 10px #168cff88)"><div><div style="font-size:12px;letter-spacing:2px;color:#8ec5ff;font-weight:bold">BLACKAI SAFETY</div><h1 style="font-size:23px;margin:3px 0;color:#fff">Live Location</h1><div style="font-size:11px;color:#9eacc0">Private location sharing</div></div></div>
+ <div style="background:#101a28;border:1px solid #344a65;border-radius:13px;padding:13px;margin-bottom:12px"><div style="font-size:12px;color:#8ec5ff;font-weight:bold">● LIVE STATUS</div><p id="liveViewerStatus" aria-live="polite" style="margin:8px 0 0;color:#e7edf7;line-height:1.5">लोकेशन लोड हो रही है…</p></div>
+ <div style="overflow:hidden;border:1px solid #405875;border-radius:15px;background:#0b111a"><iframe id="liveViewerFrame" title="Live location map" style="display:none;width:100%;height:340px;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe><div id="liveViewerMapPlaceholder" style="padding:35px 15px;text-align:center;color:#9eacc0">पहली GPS लोकेशन का इंतज़ार है…</div></div>
+ <a id="liveViewerMap" target="_blank" rel="noopener noreferrer" style="display:none;margin-top:13px;padding:14px;text-align:center;border-radius:12px;background:#1769aa;color:white;text-decoration:none;font-weight:bold">📍 Google Maps में खोलें</a>
+ <p style="color:#9baec3;font-size:12px;line-height:1.55;margin:15px 2px 0">यह निजी लिंक अधिकतम 5 घंटे के लिए है। मैप लगभग हर 10 सेकंड में अपडेट होता है, जब शेयर करने वाले का डिवाइस, GPS, इंटरनेट और लोकेशन सेवा सक्रिय हों। लिंक केवल भरोसेमंद व्यक्ति के साथ साझा करें।</p>
+</div>
 <div id="authGate">
  <h1>BLACKAI</h1>
  <h2 id="authTitle" style="margin:8px 0">Login to continue</h2>
@@ -646,20 +652,32 @@ async function showLiveViewer(){
  document.getElementById("appContent").style.display="none";
  const viewer=document.getElementById("liveViewer");viewer.style.display="block";
  const status=document.getElementById("liveViewerStatus"), map=document.getElementById("liveViewerMap");
- let refreshTimer=null;
+ const frame=document.getElementById("liveViewerFrame"),placeholder=document.getElementById("liveViewerMapPlaceholder");
+ let refreshTimer=null,lastMapKey="";
  async function refresh(){
   try{
    const snap=await liveDB.ref("liveShares/"+id).once("value"),v=snap.val();
    if(!v||v.active!==true||!v.expiresAt||Date.now()>v.expiresAt){
     status.textContent="यह Live Location लिंक बंद हो चुका है या इसकी समय-सीमा समाप्त हो गई है।";
-    map.style.display="none";
-    if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}
-    return;
+    map.style.display="none";frame.style.display="none";placeholder.style.display="block";
+    placeholder.textContent="शेयरिंग बंद है या लिंक की समय-सीमा समाप्त हो गई है।";
+    if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}return;
    }
-   if(typeof v.lat!=="number"||typeof v.lng!=="number"||v.lat===0&&v.lng===0){status.textContent="पहली GPS लोकेशन का इंतज़ार है…";map.style.display="none";return;}
-    if(!v.updatedAt||Date.now()-v.updatedAt>120000){status.textContent="लोकेशन 2 मिनट से अपडेट नहीं हुई है। इसे वर्तमान लोकेशन न मानें।";map.style.display="none";return;}
-   status.textContent="आखिरी अपडेट: "+new Date(v.updatedAt).toLocaleString("hi-IN");
-   map.href="https://maps.google.com/?q="+v.lat+","+v.lng;map.style.display="inline-block";
+   if(typeof v.lat!=="number"||typeof v.lng!=="number"||(v.lat===0&&v.lng===0)){
+    status.textContent="पहली GPS लोकेशन का इंतज़ार है…";map.style.display="none";return;
+   }
+   if(!v.updatedAt||Date.now()-v.updatedAt>120000){
+    status.textContent="लोकेशन 2 मिनट से अपडेट नहीं हुई है। इसे वर्तमान लोकेशन न मानें।";
+    map.style.display="none";return;
+   }
+   const coords=v.lat.toFixed(6)+","+v.lng.toFixed(6);
+   status.textContent="● लोकेशन सक्रिय · आखिरी अपडेट: "+new Date(v.updatedAt).toLocaleTimeString("hi-IN");
+   map.href="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(coords);
+   map.style.display="block";placeholder.style.display="none";frame.style.display="block";
+   if(coords!==lastMapKey){
+    frame.src="https://maps.google.com/maps?q="+encodeURIComponent(coords)+"&z=16&output=embed";
+    lastMapKey=coords;
+   }
   }catch(e){status.textContent="लोकेशन नहीं खुल सकी। लिंक या इंटरनेट जांचें।";}
  }
  await refresh();
