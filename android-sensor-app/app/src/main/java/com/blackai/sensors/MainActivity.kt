@@ -98,6 +98,7 @@ class MainActivity : Activity() {
             Firebase.initialize(context = this)
             Firebase.appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
         }
+        cleanupExpiredLiveLocationRecord()
         val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(9,16,31)) }
         root.addView(TextView(this).apply { text="BLACKAI  •  PERSONAL SAFETY"; textSize=19f; gravity=android.view.Gravity.CENTER; setTextColor(Color.WHITE); setPadding(16,18,16,16) })
         pageHost=android.widget.FrameLayout(this)
@@ -554,6 +555,16 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    private fun cleanupExpiredLiveLocationRecord() {
+        val prefs = getSharedPreferences("blackai_live_location", MODE_PRIVATE)
+        val id = prefs.getString("share_id", null) ?: return
+        val ownerUid = prefs.getString("owner_uid", null) ?: return
+        val expiry = prefs.getLong("expires_at", 0L)
+        if (expiry > System.currentTimeMillis()) return
+        if (firebaseAuth.currentUser?.uid != ownerUid) return
+        FirebaseDatabase.getInstance().reference.child("liveShares").child(id).removeValue()
+            .addOnSuccessListener { prefs.edit().clear().apply() }
+    }
     private fun startLiveLocationSharing() {
         val user = firebaseAuth.currentUser
         if (user == null) { Toast.makeText(this, "पहले BLACKAI में Login करें।", Toast.LENGTH_LONG).show(); return }
