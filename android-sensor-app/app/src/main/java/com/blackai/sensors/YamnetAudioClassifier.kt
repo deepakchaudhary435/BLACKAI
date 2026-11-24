@@ -29,6 +29,14 @@ class YamnetAudioClassifier(context: Context) : Closeable {
         require(labels.size == 521) { "YAMNet label file must contain 521 labels" }
     }
 
+    /**
+     * Returns a cautious scene estimate for a caller-owned 0.975-second audio frame.
+     * This does not establish whether speech is live or coming from media playback.
+     */
+    @Synchronized
+    fun assessSource(samples16kMono: FloatArray): AudioSourceAssessment =
+        AudioSourceAssessment.from(classify(samples16kMono))
+
     @Synchronized
     fun classify(samples16kMono: FloatArray): List<Prediction> {
         require(samples16kMono.size == 15600) { "Expected 0.975 seconds (15,600 samples) at 16 kHz" }
