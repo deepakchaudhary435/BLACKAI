@@ -49,6 +49,8 @@ class MainActivity : Activity() {
     private lateinit var dashboard: TextView
     private lateinit var voiceLanguageButton: Button
     private lateinit var mainContentView: View
+    private lateinit var pageHost: android.widget.FrameLayout
+    private val pageViews = linkedMapOf<String, View>()
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
@@ -261,8 +263,18 @@ class MainActivity : Activity() {
 
     private fun showMainApp() {
         setContentView(mainContentView)
+        showPage("home")
         refreshSignalLog()
         refreshDashboard()
+    }
+
+    private fun showPage(id: String) {
+        val targetId = if (pageViews.containsKey(id)) id else "home"
+        val page = pageViews[targetId] ?: return
+        pageHost.removeAllViews()
+        pageHost.addView(page, android.widget.FrameLayout.LayoutParams(-1, -1))
+        if (targetId == "history") refreshSignalLog()
+        if (targetId == "home" || targetId == "safety") refreshDashboard()
     }
 
     override fun onResume() {
