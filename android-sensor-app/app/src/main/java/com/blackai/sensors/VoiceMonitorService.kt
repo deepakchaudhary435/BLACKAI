@@ -29,6 +29,9 @@ class VoiceMonitorService : Service(), RecognitionListener {
     private var providerLabel = "system default (not reported)"
     private var selectedLanguageTag = "hi-IN"
     private var selectedLanguageName = "हिन्दी"
+    private var lastMatchedPhrase = ""
+    private var lastMatchedAt = 0L
+    private var peakSpeechLevel = 0f
     private val retryHandler = Handler(Looper.getMainLooper())
     private val retryAction = Runnable { startListening() }
     private val channelId = "blackai_voice_monitor"
@@ -111,13 +114,30 @@ class VoiceMonitorService : Service(), RecognitionListener {
             "ur-IN" to listOf("بچاؤ", "مجھے بچاؤ", "مدد کرو", "مدد چاہیے", "پولیس بلاؤ", "help")
         )
         val phrases = phrasesByLanguage[selectedLanguageTag] ?: listOf("help")
+        val contextPhrases = if (selectedLanguageTag == "hi-IN") listOf(
+            "मुझे जबरदस्ती", "मुझे पकड़ लिया", "मुझे छोड़ दो", "मुझे ले जा रहे",
+            "मेरे साथ गलत", "मुझे धमकी", "मुझे बंद कर", "मुझे जाने दो",
+            "मत मारो", "हाथ मत लगाओ", "यहां से बचाओ", "पुलिस को बुलाओ",
+            "help me", "don't hurt me", "let me go", "leave me alone", "call the police"
+        ) else emptyList()
         val found = matches.firstOrNull { spoken ->
             val normalized = spoken.lowercase(Locale.ROOT)
-            phrases.any { normalized.contains(it.lowercase(Locale.ROOT)) }
+            phrases.any { normalized.contains(it.lowercase(Locale.ROOT)) } ||
+                contextPhrases.any { normalized.contains(it.lowercase(Locale.ROOT)) }
         }
         retryCount = 0
         if (found != null) {
-            recordPossibleVoiceAlert(found)
+            val now = SystemClock.elapsedRealtime()
+            val normalized = found.lowercase(Locale.ROOT).trim()
+            // Repeated identical phrases can indicate TV/radio playback. This is only
+            // a conservative media-likelihood hint, never a reliable source detector.
+            val repeatedLikeMedia = normalized == lastMatchedPhrase &&
+                now - lastMatchedAt in 1_000L..45_000L
+            recordPossibleVoiceAlert(found, repeatedLikeMedia, peakSpeechLevel)
+            lastMatchedPhrase = normalized
+            lastMatchedAt = now
+        }
+        peakSpeechLevel = 0f
         } else if (matches.isNotEmpty()) {
             // Privacy-preserving diagnostic: report that text alternatives arrived,
             // without displaying or storing the words spoken in the environment.
@@ -127,13 +147,14 @@ class VoiceMonitorService : Service(), RecognitionListener {
         retryHandler.postDelayed(retryAction, 500L)
     }
 
-    private fun recordPossibleVoiceAlert(spoken: String) {
+    private fun recordPossibleVoiceAlert(spoken: String, mediaLike: Boolean, peakLevel: Float) {
         val nowElapsed = SystemClock.elapsedRealtime()
         if (nowElapsed - lastMatchAt < 60_000L) return
         lastMatchAt = nowElapsed
         val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
         val timestamp = System.currentTimeMillis()
-        val text = "संभावित मदद-संबंधी शब्द — भाषा: $selectedLanguageName ($selectedLanguageTag) — पहचाने गए शब्द: $spoken"
+        val classification = if (mediaLike) "मीडिया-जैसी दोहराव वाली आवाज़ (अनुमान)" else "संभावित distress संकेत (पुष्टि आवश्यक)"
+        val text = "$classification — भाषा: $selectedLanguageName ($selectedLanguageTag) — पहचाने गए शब्द: $spoken — speech level peak: " + String.format(Locale.ROOT, "%.1f", peakLevel)
         val count = prefs.getInt("voice_signal_count", 0) + 1
         val history = prefs.getString("voice_signal_history", "") ?: ""
         val newEntry = "$timestamp|$text"
@@ -145,7 +166,11 @@ class VoiceMonitorService : Service(), RecognitionListener {
             .putLong("voice_last_signal_time", timestamp)
             .putString("voice_signal_history", updated)
             .apply()
-        updateNotification("संभावित मदद की पुकार पहचानी गई। यह पुष्टि नहीं है; सुरक्षित हों तो सहायता लें। कोई संदेश/कॉल नहीं भेजा गया।")
+        if (mediaLike) {
+            updateNotification("मीडिया जैसी दोहराई हुई आवाज़ का संदेह। पक्का TV/Radio पहचानना संभव नहीं; कोई SOS नहीं भेजा गया।")
+        } else {
+            updateNotification("संभावित मदद/खतरे के शब्द मिले। यह पुष्टि नहीं है। कोई कॉल/SMS/लोकेशन साझा नहीं हुई।")
+        }
     }
 
     private fun errorLabel(error: Int): String = when (error) {
@@ -207,7 +232,9 @@ class VoiceMonitorService : Service(), RecognitionListener {
         updateNotification("Voice monitoring चालू — $selectedLanguageName में शब्द पहचानने की कोशिश।")
     }
     override fun onBeginningOfSpeech() = Unit
-    override fun onRmsChanged(rmsdB: Float) = Unit
+    override fun onRmsChanged(rmsdB: Float) {
+        if (rmsdB.isFinite() && rmsdB > peakSpeechLevel) peakSpeechLevel = rmsdB
+    }
     override fun onBufferReceived(buffer: ByteArray?) = Unit
     override fun onEndOfSpeech() = Unit
     override fun onPartialResults(partialResults: Bundle?) = Unit
