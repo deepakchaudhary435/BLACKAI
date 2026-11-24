@@ -176,6 +176,7 @@ class MainActivity : Activity() {
 
         val profile=createPage("profile","👤 My Profile","आपका BLACKAI अकाउंट")
         action(profile,"मेरी Profile देखें") { showAccountCenter() }
+        action(profile,"🎨 App Theme बदलें","Dark, Light और Ocean themes") { showThemePicker() }
         action(profile,"🚪 Logout — अकाउंट से बाहर निकलें") {
             val user=firebaseAuth.currentUser
             if(user==null) showAuthLanding() else AlertDialog.Builder(this).setTitle("Logout करें?")
@@ -194,11 +195,16 @@ class MainActivity : Activity() {
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
         *{box-sizing:border-box}body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 42%,#102b4d 0%,#070d18 48%,#030509 100%);color:#fff;font-family:Arial}
         .card{width:90%;max-width:440px;text-align:center;padding:28px 18px;border:1px solid #28558a;border-radius:28px;background:linear-gradient(155deg,#10213a,#070b13);box-shadow:0 0 55px #087bff55;animation:rise .8s ease both}
-        .logo{width:min(62vw,235px);height:auto;filter:drop-shadow(0 0 18px #168cffbb);animation:float 3s ease-in-out infinite}
+        .logo{width:min(62vw,235px);height:auto;filter:drop-shadow(0 0 12px #168cffaa);transform:scale(.35);opacity:0;animation:logoZoom 1.65s cubic-bezier(.16,.85,.25,1) .18s forwards,logoGlow 2.4s ease-in-out 1.8s infinite alternate}
+        .light{position:absolute;top:-35%;left:-70%;width:55%;height:170%;transform:rotate(25deg);background:linear-gradient(90deg,transparent,#ffffff22,#78c7ff99,#ffffff22,transparent);filter:blur(9px);animation:beam 2.2s ease-out .55s 1 forwards;pointer-events:none}
+        .card{position:relative;overflow:hidden}
         h1{font-size:48px;font-style:italic;letter-spacing:2px;margin:6px 0 10px}h1 span{color:#ed3049}.tag{font-size:12px;font-weight:bold;letter-spacing:2px;color:#d5e5fa}
-        .line{width:112px;height:4px;border-radius:5px;margin:18px auto;background:linear-gradient(90deg,#167dff,#fff,#ed3049)}.sub{font-size:14px;color:#afc2dc}
-        @keyframes float{50%{transform:translateY(-9px)}}@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-        </style></head><body><div class="card"><img class="logo" src="blackai-logo.svg"><h1>BLACK<span>AI</span></h1>
+        .line{width:112px;height:4px;border-radius:5px;margin:18px auto;background:linear-gradient(90deg,#167dff,#fff,#ed3049);box-shadow:0 0 16px #55aaff}.sub{font-size:14px;color:#afc2dc}
+        @keyframes logoZoom{0%{transform:scale(.35);opacity:0}65%{transform:scale(1.13);opacity:1}100%{transform:scale(1);opacity:1}}
+        @keyframes logoGlow{from{filter:drop-shadow(0 0 10px #168cff88)}to{filter:drop-shadow(0 0 34px #45baff) drop-shadow(0 0 12px #ed3049)}}
+        @keyframes beam{0%{left:-70%;opacity:0}25%{opacity:1}100%{left:130%;opacity:0}}
+        @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+        </style></head><body><div class="card"><div class="light"></div><img class="logo" src="blackai-logo.svg"><h1>BLACK<span>AI</span></h1>
         <div class="tag">PERSONAL SAFETY • SMART PROTECTION</div><div class="line"></div><div class="sub">आपकी सुरक्षा, हमारी प्राथमिकता</div></div></body></html>
         """.trimIndent()
         val splash=android.webkit.WebView(this).apply {
@@ -260,11 +266,64 @@ class MainActivity : Activity() {
     }
 
     private fun showMainApp() {
+        applyAppTheme(mainContentView)
         setContentView(mainContentView)
         showPage("home")
         refreshSignalLog()
         refreshDashboard()
         checkBackupReminder()
+    }
+
+    private fun showThemePicker() {
+        val names = arrayOf("Dark — काला / नीला", "Light — सफेद", "Ocean — गहरा नीला")
+        val prefs = historyPrefs()
+        val selected = prefs.getInt("app_theme", 0).coerceIn(0, 2)
+        AlertDialog.Builder(this)
+            .setTitle("BLACKAI का Theme चुनें")
+            .setSingleChoiceItems(names, selected) { dialog, which ->
+                prefs.edit().putInt("app_theme", which).apply()
+                applyAppTheme(mainContentView)
+                dialog.dismiss()
+                Toast.makeText(this, names[which] + " Theme लागू हो गई।", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("बंद करें", null)
+            .show()
+    }
+
+    private fun applyAppTheme(view: View) {
+        val theme = historyPrefs().getInt("app_theme", 0).coerceIn(0, 2)
+        val background = when (theme) {
+            1 -> Color.rgb(244, 247, 252)
+            2 -> Color.rgb(5, 24, 48)
+            else -> Color.rgb(9, 16, 31)
+        }
+        val panel = when (theme) {
+            1 -> Color.rgb(225, 235, 247)
+            2 -> Color.rgb(12, 43, 75)
+            else -> Color.rgb(19, 31, 51)
+        }
+        val primaryText = if (theme == 1) Color.rgb(24, 38, 56) else Color.WHITE
+        val accent = when (theme) {
+            1 -> Color.rgb(0, 112, 180)
+            2 -> Color.rgb(77, 204, 235)
+            else -> Color.rgb(74, 220, 218)
+        }
+        when (view) {
+            is ScrollView, is LinearLayout, is android.widget.FrameLayout -> view.setBackgroundColor(background)
+        }
+        if (view is Button) {
+            view.setTextColor(primaryText)
+            view.background = GradientDrawable().apply {
+                setColor(panel)
+                cornerRadius = 22f
+                setStroke(1, accent)
+            }
+        } else if (view is TextView) {
+            view.setTextColor(if (view.textSize >= 19f) accent else primaryText)
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) applyAppTheme(view.getChildAt(index))
+        }
     }
 
     private fun showPage(id: String) {
