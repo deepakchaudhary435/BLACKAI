@@ -614,7 +614,7 @@ async function startLiveLocation(){
  const now=Date.now(), expiresAt=now+5*60*60*1000;
  const ref=liveDB.ref("liveShares/"+liveShareId);
  try{
-  await ref.onDisconnect().remove();
+  await ref.onDisconnect().update({active:false});
   await ref.set({uid:auth.currentUser.uid,lat:0,lng:0,updatedAt:now,expiresAt,active:true});
   const link=location.origin+location.pathname+"?live="+liveShareId;
   const c=contacts[Number(idx)];
@@ -637,7 +637,7 @@ async function startLiveLocation(){
 async function stopLiveLocation(){
  if(liveWatchId!==null){navigator.geolocation.clearWatch(liveWatchId);liveWatchId=null;}
  if(liveExpiryTimer){clearTimeout(liveExpiryTimer);liveExpiryTimer=null;}
- if(liveShareId){const id=liveShareId;liveShareId=null;try{await liveDB.ref("liveShares/"+id).remove();}catch(e){}}
+ if(liveShareId){const id=liveShareId;liveShareId=null;try{await liveDB.ref("liveShares/"+id).remove();}catch(e){try{await liveDB.ref("liveShares/"+id).update({active:false,updatedAt:Date.now()});}catch(ignore){}}}
  const status=document.getElementById("liveLocationStatus");if(status)status.textContent="Live Location बंद है।";
 }
 async function showLiveViewer(){
