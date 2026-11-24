@@ -161,6 +161,7 @@ class MainActivity : Activity() {
         action(emergency,"112 Emergency Call","फोन का Dialer खुलेगा") { confirmEmergencyDial() }
         action(emergency,"Emergency Control Center") { showEmergencyControlCenter() }
         action(emergency,"🆘 ONE-TAP SOS","पहले पुष्टि करें, फिर SMS ऐप खुलेगा") { confirmEmergencyAlert() }
+        action(emergency,"📍 SOS + Current Location","एक बार की लोकेशन SMS में जोड़ें") { prepareEmergencySmsWithLocation() }
         action(emergency,"📳 Shake Alert","ऐप खुला रहने पर तेज़ shake पहचानें") { showShakeAlertInfo() }
         action(emergency,"📴 Offline SMS Mode","इंटरनेट के बिना SMS ऐप में संदेश तैयार करें") { prepareEmergencySms() }
         action(emergency,"🧠 Danger Signals (Experimental)","Motion / Voice रिकॉर्ड का सारांश") { showDangerSignalSummary() }
@@ -1044,6 +1045,58 @@ class MainActivity : Activity() {
             }.setNegativeButton("बंद करें", null).show()
     }
 
+    private val emergencyLocationPermissionRequest = 72
+
+    private fun prepareEmergencySmsWithLocation() {
+        val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (arr.length() == 0) { Toast.makeText(this, "पहले भरोसेमंद संपर्क जोड़ें।", Toast.LENGTH_LONG).show(); return }
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), emergencyLocationPermissionRequest)
+            return
+        }
+        fetchLocationForEmergencySms()
+    }
+
+    @Suppress("MissingPermission")
+    private fun fetchLocationForEmergencySms() {
+        val manager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val provider = when { manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER; manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER; else -> null }
+        if (provider == null) { askToContinueWithoutLocation("फोन की Location setting बंद है।"); return }
+        Toast.makeText(this, "आपकी अनुमति से वर्तमान लोकेशन ली जा रही है…", Toast.LENGTH_SHORT).show()
+        if (Build.VERSION.SDK_INT >= 30) {
+            manager.getCurrentLocation(provider, null, mainExecutor) { location -> if (location != null) openEmergencySmsComposer(location) else askToContinueWithoutLocation("अभी लोकेशन नहीं मिल सकी।") }
+        } else {
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) { manager.removeUpdates(this); openEmergencySmsComposer(location) }
+                @Deprecated("Deprecated by Android") override fun onStatusChanged(providerName: String?, statusCode: Int, extras: Bundle?) {}
+                override fun onProviderEnabled(providerName: String) {}
+                override fun onProviderDisabled(providerName: String) { manager.removeUpdates(this); askToContinueWithoutLocation("Location provider बंद हो गया।") }
+            }
+            try { manager.requestSingleUpdate(provider, listener, Looper.getMainLooper()) } catch (_: Exception) { askToContinueWithoutLocation("लोकेशन प्राप्त नहीं हो सकी।") }
+        }
+    }
+
+    private fun askToContinueWithoutLocation(reason: String) {
+        AlertDialog.Builder(this).setTitle("लोकेशन उपलब्ध नहीं").setMessage("$reason क्या आप बिना लोकेशन के SMS तैयार करना चाहते हैं?")
+            .setNegativeButton("रद्द करें", null).setPositiveButton("बिना लोकेशन जारी रखें") { _, _ -> openEmergencySmsComposer(null) }.show()
+    }
+
+    private fun openEmergencySmsComposer(location: Location?) {
+        val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        val numbers = (0 until arr.length()).map { arr.getJSONObject(it).optString("phone") }.filter { it.isNotBlank() }
+        if (numbers.isEmpty()) { Toast.makeText(this, "संपर्क नंबर उपलब्ध नहीं हैं।", Toast.LENGTH_LONG).show(); return }
+        val time = DateFormat.getDateTimeInstance().format(Date())
+        val locationLine = if (location != null) "\\nमेरी वर्तमान लोकेशन: https://maps.google.com/?q=${location.latitude},${location.longitude}" else ""
+        val message = "BLACKAI Emergency Alert: मुझे सहायता की आवश्यकता है। कृपया मुझसे संपर्क करें। समय: $time.$locationLine\\nयह लोकेशन एक बार अभी प्राप्त की गई है; यह Live Tracking नहीं है।"
+        AlertDialog.Builder(this).setTitle("Emergency SMS जाँचें")
+            .setMessage("SMS ऐप खुलेगा। प्राप्तकर्ता और संदेश जाँचकर आप स्वयं Send दबाएँगे। BLACKAI अपने आप SMS नहीं भेजेगा।")
+            .setNegativeButton("रद्द करें", null).setPositiveButton("SMS ऐप खोलें") { _, _ ->
+                logEmergencyAction(if (location != null) "लोकेशन सहित SMS composer खोला" else "बिना लोकेशन SMS composer खोला")
+                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + numbers.joinToString(";"))).putExtra("sms_body", message)
+                try { startActivity(intent) } catch (_: Exception) { Toast.makeText(this, "SMS ऐप उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
+            }.show()
+    }
     private fun prepareEmergencySms() {
         val arr = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
         if (arr.length() == 0) {
@@ -1467,6 +1520,8 @@ class MainActivity : Activity() {
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
         else if (requestCode == locationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) fetchOneTimeLocation()
+        else if (requestCode == emergencyLocationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) fetchLocationForEmergencySms()
+        else if (requestCode == emergencyLocationPermissionRequest) askToContinueWithoutLocation("लोकेशन अनुमति नहीं मिली।")
         else if (requestCode == locationPermissionRequest) Toast.makeText(this, "लोकेशन अनुमति नहीं मिली।", Toast.LENGTH_LONG).show()
         else if (requestCode == 41 || requestCode == voicePermissionRequest) status.text = "ज़रूरी अनुमति नहीं मिली; Monitoring शुरू नहीं हुई।"
     }
