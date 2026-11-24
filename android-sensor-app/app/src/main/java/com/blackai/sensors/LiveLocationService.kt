@@ -93,7 +93,7 @@ class LiveLocationService : Service(), LocationListener {
         )
         val ref = shareRef ?: run { stopSharing(); return }
         // Ask Firebase to delete this record if the app/device loses its database connection.
-        ref.onDisconnect().removeValue().addOnSuccessListener {
+        ref.onDisconnect().updateChildren(mapOf("active" to false)).addOnSuccessListener {
             ref.setValue(initial).addOnSuccessListener {
                 isSharing = true
                 try {
@@ -185,7 +185,9 @@ class LiveLocationService : Service(), LocationListener {
         shareRef = null
         shareId = null
         // Delete coordinates on Stop or normal expiry; database rules also deny reads after expiry.
-        refToDelete?.removeValue()
+        refToDelete?.removeValue()?.addOnFailureListener {
+            refToDelete.updateChildren(mapOf("active" to false, "updatedAt" to System.currentTimeMillis()))
+        }
         getSharedPreferences("blackai_live_location", MODE_PRIVATE).edit().clear().apply()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
         else stopForeground(true)
@@ -197,7 +199,9 @@ class LiveLocationService : Service(), LocationListener {
         try { locationManager?.removeUpdates(this) } catch (_: Exception) {}
         val refToDelete = shareRef
         shareRef = null
-        if (isSharing) refToDelete?.removeValue()
+        if (isSharing) refToDelete?.removeValue()?.addOnFailureListener {
+            refToDelete.updateChildren(mapOf("active" to false, "updatedAt" to System.currentTimeMillis()))
+        }
         isSharing = false
         getSharedPreferences("blackai_live_location", MODE_PRIVATE).edit().clear().apply()
         super.onDestroy()
