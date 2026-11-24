@@ -166,6 +166,7 @@ class LiveLocationService : Service(), LocationListener {
             .build()
     }
 
+    @Suppress("DEPRECATION")
     private fun stopSharing() {
         handler.removeCallbacksAndMessages(null)
         try { locationManager?.removeUpdates(this) } catch (_: Exception) {}
@@ -175,7 +176,7 @@ class LiveLocationService : Service(), LocationListener {
         shareRef = null
         shareId = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
-        else @Suppress("DEPRECATION") stopForeground(true)
+        else stopForeground(true)
         stopSelf()
     }
 
