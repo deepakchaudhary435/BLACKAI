@@ -143,10 +143,17 @@ class VoiceMonitorService : Service(), RecognitionListener {
                 // Repeated identical phrases are only a weak additional media hint.
                 val repeatedLikeMedia = normalized == lastMatchedPhrase &&
                     now - lastMatchedAt in 1_000L..45_000L
-                if (!repeatedLikeMedia) {
-                    recordPossibleVoiceAlert(found, false, peakSpeechLevel)
-                } else {
-                    updateNotification("एक जैसा phrase दोबारा मिला; media-जैसा संदेह है। कोई SOS नहीं भेजा गया।")
+                // Repetition alone cannot prove that audio came from TV/radio:
+                // a real person may repeat a help phrase. Keep it as an uncertain
+                // signal instead of silently discarding it.
+                recordPossibleVoiceAlert(
+                    found,
+                    false,
+                    peakSpeechLevel,
+                    if (repeatedLikeMedia) "दोहराव मिला; स्रोत अनिश्चित (मीडिया-जैसा संकेत)" else "स्रोत अनिश्चित"
+                )
+                if (repeatedLikeMedia) {
+                    updateNotification("एक जैसा मदद वाला phrase दोहराया गया। स्रोत अनिश्चित है; इसे TV/Radio साबित नहीं माना गया।")
                 }
                 lastMatchedPhrase = normalized
                 lastMatchedAt = now
@@ -170,14 +177,19 @@ class VoiceMonitorService : Service(), RecognitionListener {
         }
     }
 
-    private fun recordPossibleVoiceAlert(spoken: String, mediaLike: Boolean, peakLevel: Float) {
+    private fun recordPossibleVoiceAlert(
+        spoken: String,
+        mediaLike: Boolean,
+        peakLevel: Float,
+        sourceHint: String = "स्रोत अनिश्चित"
+    ) {
         val nowElapsed = SystemClock.elapsedRealtime()
         if (!mediaLike && nowElapsed - lastMatchAt < 60_000L) return
         lastMatchAt = nowElapsed
         val prefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
         val timestamp = System.currentTimeMillis()
         val classification = if (mediaLike) "मीडिया-जैसी दोहराव वाली आवाज़ (अनुमान)" else "संभावित distress संकेत (पुष्टि आवश्यक)"
-        val text = "$classification — भाषा: $selectedLanguageName ($selectedLanguageTag) — पहचाने गए शब्द: $spoken — speech level peak: " + String.format(Locale.ROOT, "%.1f", peakLevel)
+        val text = "$classification — $sourceHint — भाषा: $selectedLanguageName ($selectedLanguageTag) — पहचाने गए शब्द: $spoken — speech level peak: " + String.format(Locale.ROOT, "%.1f", peakLevel)
         val count = prefs.getInt("voice_signal_count", 0) + 1
         val history = prefs.getString("voice_signal_history", "") ?: ""
         val newEntry = "$timestamp|$text"
@@ -192,7 +204,7 @@ class VoiceMonitorService : Service(), RecognitionListener {
         if (mediaLike) {
             updateNotification("मीडिया जैसी दोहराई हुई आवाज़ का संदेह। पक्का TV/Radio पहचानना संभव नहीं; कोई SOS नहीं भेजा गया।")
         } else {
-            updateNotification("संभावित मदद/खतरे के शब्द मिले। यह पुष्टि नहीं है। कोई कॉल/SMS/लोकेशन साझा नहीं हुई।")
+            updateNotification("संभावित मदद-संबंधी शब्द मिले। ऑडियो स्रोत की पुष्टि नहीं हुई ($sourceHint)। यह केवल संकेत है; कोई कॉल/SMS/लोकेशन साझा नहीं हुई।")
         }
     }
 
