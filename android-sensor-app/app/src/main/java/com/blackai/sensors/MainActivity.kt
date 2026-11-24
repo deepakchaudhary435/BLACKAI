@@ -8,6 +8,10 @@ import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -57,6 +61,24 @@ class MainActivity : Activity() {
     private val locationPermissionRequest = 71
     private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var lastShakeAlertAt = 0L
+    private val shakeSensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
+    private val shakeListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+            val magnitude = kotlin.math.sqrt(x * x + y * y + z * z)
+            val now = System.currentTimeMillis()
+            if (magnitude > 25f && now - lastShakeAlertAt > 15000L &&
+                firebaseAuth.currentUser != null && ::mainContentView.isInitialized &&
+                mainContentView.parent != null) {
+                lastShakeAlertAt = now
+                showShakeAlertConfirmation()
+            }
+        }
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    }
     private val dashboardHandler = Handler(Looper.getMainLooper())
     private val dashboardRefreshTask = object : Runnable {
         override fun run() {
@@ -138,7 +160,10 @@ class MainActivity : Activity() {
         info(emergency,"BLACKAI अपने आप पुलिस या संपर्कों को कॉल/SMS नहीं भेजता। SMS भेजने से पहले आप संदेश जाँचेंगे।")
         action(emergency,"112 Emergency Call","फोन का Dialer खुलेगा") { confirmEmergencyDial() }
         action(emergency,"Emergency Control Center") { showEmergencyControlCenter() }
-        action(emergency,"Emergency Alert तैयार करें") { confirmEmergencyAlert() }
+        action(emergency,"🆘 ONE-TAP SOS","पहले पुष्टि करें, फिर SMS ऐप खुलेगा") { confirmEmergencyAlert() }
+        action(emergency,"📳 Shake Alert","ऐप खुला रहने पर तेज़ shake पहचानें") { showShakeAlertInfo() }
+        action(emergency,"📴 Offline SMS Mode","इंटरनेट के बिना SMS ऐप में संदेश तैयार करें") { prepareEmergencySms() }
+        action(emergency,"🧠 Danger Signals (Experimental)","Motion / Voice रिकॉर्ड का सारांश") { showDangerSignalSummary() }
         action(emergency,"Emergency SMS तैयार करें") { prepareEmergencySms() }
         action(emergency,"Safety Checklist") { showSafetyChecklist() }
         action(emergency,"Emergency Activity History") { showEmergencyHistory() }
@@ -342,9 +367,14 @@ class MainActivity : Activity() {
         if (::signalLog.isInitialized) refreshSignalLog()
         dashboardHandler.removeCallbacks(dashboardRefreshTask)
         dashboardHandler.post(dashboardRefreshTask)
+        val accelerometer = shakeSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (accelerometer != null && firebaseAuth.currentUser != null) {
+            shakeSensorManager.registerListener(shakeListener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        }
     }
 
     override fun onPause() {
+        shakeSensorManager.unregisterListener(shakeListener)
         dashboardHandler.removeCallbacks(dashboardRefreshTask)
         super.onPause()
     }
@@ -1032,6 +1062,39 @@ class MainActivity : Activity() {
                 try { startActivity(intent) }
                 catch (_: Exception) { Toast.makeText(this, "SMS ऐप उपलब्ध नहीं है।", Toast.LENGTH_LONG).show() }
             }.show()
+    }
+
+    private fun showShakeAlertInfo() {
+        AlertDialog.Builder(this)
+            .setTitle("📳 Shake Alert")
+            .setMessage("Shake Alert केवल ऐप खुले और स्क्रीन पर होने के दौरान काम करता है। तेज़ shake पर पुष्टि स्क्रीन खुलेगी; BLACKAI अपने आप कॉल या SMS नहीं भेजेगा।")
+            .setPositiveButton("समझ गया", null)
+            .show()
+    }
+
+    private fun showShakeAlertConfirmation() {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle("BLACKAI — Shake Alert")
+            .setMessage("फोन में तेज़ हलचल महसूस हुई। क्या आपको सहायता चाहिए? यह गलती से भी हो सकता है।")
+            .setNegativeButton("नहीं, रद्द करें") { _, _ ->
+                logEmergencyAction("Shake Alert रद्द किया")
+            }
+            .setPositiveButton("हाँ — SOS विकल्प खोलें") { _, _ ->
+                logEmergencyAction("Shake Alert की पुष्टि; SOS विकल्प खोला")
+                confirmEmergencyAlert()
+            }
+            .setOnCancelListener { logEmergencyAction("Shake Alert स्क्रीन बंद की") }
+            .show()
+    }
+
+    private fun showDangerSignalSummary() {
+        val prefs = historyPrefs()
+        val message = "Motion संकेत: ${prefs.getInt("signal_count", 0)}\n" +
+            "Voice संकेत: ${prefs.getInt("voice_signal_count", 0)}\n\n" +
+            "यह अभी AI-आधारित खतरे की पहचान नहीं है। ये केवल सेंसर के प्रयोगात्मक संकेत हैं; गलत पहचान संभव है और इनसे किसी खतरे की पुष्टि नहीं होती।"
+        AlertDialog.Builder(this).setTitle("BLACKAI — Danger Signals")
+            .setMessage(message).setPositiveButton("ठीक है", null).show()
     }
 
     private fun confirmEmergencyAlert() {
