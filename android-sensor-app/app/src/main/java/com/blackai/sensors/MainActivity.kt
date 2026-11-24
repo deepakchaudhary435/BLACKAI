@@ -60,6 +60,8 @@ class MainActivity : Activity() {
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
     private val locationPermissionRequest = 71
+    private val liveLocationPermissionRequest = 72
+    private var pendingLiveContactIndex = -1
     private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var lastShakeAlertAt = 0L
@@ -173,9 +175,11 @@ class MainActivity : Activity() {
         action(emergency,"Safety Checklist") { showSafetyChecklist() }
         action(emergency,"Emergency Activity History") { showEmergencyHistory() }
 
-        val location=createPage("location","📍 Location Sharing","लोकेशन केवल आपकी स्पष्ट अनुमति पर")
-        info(location,"बटन दबाने और Android अनुमति देने पर एक बार लोकेशन ली जाएगी। बैकग्राउंड ट्रैकिंग नहीं होगी। भेजने से पहले आप प्राप्तकर्ता चुनेंगे।")
-        action(location,"मेरी वर्तमान लोकेशन साझा करें") { requestAndShareLocation() }
+        val location=createPage("location","📍 Location Sharing","आपकी अनुमति से अधिकतम 5 घंटे")
+        info(location,"Live Location केवल आपके Start दबाने पर चालू होगी। Trusted Contact को SMS में लिंक मिलेगा, लेकिन संदेश आपको स्वयं भेजना होगा। फोन पर लगातार नोटिफिकेशन रहेगा; Stop दबाकर कभी भी बंद करें। लिंक पाने वाला व्यक्ति आपकी लोकेशन देख सकता है—इसे निजी रखें।")
+        action(location,"▶ Trusted Contact के साथ Live Location शुरू करें") { startLiveLocationSharing() }
+        action(location,"■ Live Location बंद करें") { stopLiveLocationSharing() }
+        action(location,"मेरी वर्तमान लोकेशन एक बार साझा करें") { requestAndShareLocation() }
 
         val contacts=createPage("contacts","👥 Trusted Contacts","अपने भरोसेमंद संपर्क मैनेज करें")
         action(contacts,"भरोसेमंद संपर्क जोड़ें") { addTrustedContact() }
@@ -550,6 +554,64 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    private fun startLiveLocationSharing() {
+        val user = firebaseAuth.currentUser
+        if (user == null) { Toast.makeText(this, "पहले BLACKAI में Login करें।", Toast.LENGTH_LONG).show(); return }
+        val contacts = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (contacts.length() == 0) { Toast.makeText(this, "पहले Trusted Contact जोड़ें।", Toast.LENGTH_LONG).show(); return }
+        val labels = (0 until contacts.length()).map { i ->
+            val item = contacts.getJSONObject(i)
+            "${item.optString("name")} — ${item.optString("phone")}"
+        }
+        AlertDialog.Builder(this).setTitle("किस Trusted Contact को लिंक भेजना है?")
+            .setItems(labels.toTypedArray()) { _, index ->
+                AlertDialog.Builder(this).setTitle("5 घंटे तक Live Location?")
+                    .setMessage("आपकी लोकेशन चुने हुए संपर्क के साथ अधिकतम 5 घंटे शेयर होगी। लिंक पाने वाला व्यक्ति आपकी लोकेशन देख सकेगा। फोन पर स्थायी नोटिफिकेशन रहेगा और आप कभी भी Stop कर सकते हैं। SMS अपने आप नहीं भेजा जाएगा।")
+                    .setNegativeButton("रद्द करें", null)
+                    .setPositiveButton("मैं सहमत हूँ — आगे बढ़ें") { _, _ ->
+                        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                            pendingLiveContactIndex = index
+                            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), liveLocationPermissionRequest)
+                        } else beginLiveLocationSharing(index)
+                    }.show()
+            }.setNegativeButton("बंद करें", null).show()
+    }
+
+    private fun beginLiveLocationSharing(contactIndex: Int) {
+        val user = firebaseAuth.currentUser ?: return
+        val contacts = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (contactIndex !in 0 until contacts.length()) return
+        val contact = contacts.getJSONObject(contactIndex)
+        val phone = contact.optString("phone").trim()
+        if (phone.isBlank()) { Toast.makeText(this, "Trusted Contact का नंबर उपलब्ध नहीं है।", Toast.LENGTH_LONG).show(); return }
+        val bytes = ByteArray(24)
+        java.security.SecureRandom().nextBytes(bytes)
+        val shareId = bytes.joinToString("") { "%02x".format(it) }
+        val expiresAt = System.currentTimeMillis() + 5L * 60L * 60L * 1000L
+        val serviceIntent = Intent(this, LiveLocationService::class.java).apply {
+            putExtra(LiveLocationService.EXTRA_SHARE_ID, shareId)
+            putExtra(LiveLocationService.EXTRA_UID, user.uid)
+            putExtra(LiveLocationService.EXTRA_EXPIRES_AT, expiresAt)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent) else startService(serviceIntent)
+            val link = "https://deepakchaudhary435.github.io/BLACKAI/?live=$shareId"
+            val message = "BLACKAI Live Location (अधिकतम 5 घंटे):\n$link\nयह निजी लिंक है। कृपया इसे आगे साझा न करें।"
+            val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(phone))).apply { putExtra("sms_body", message) }
+            logEmergencyAction("Trusted Contact के लिए Live Location शुरू की")
+            startActivity(smsIntent)
+            Toast.makeText(this, "Live Location चालू है। SMS जाँचकर स्वयं Send करें।", Toast.LENGTH_LONG).show()
+        } catch (error: Exception) {
+            Toast.makeText(this, "Live Location शुरू नहीं हो पाई: ${error.localizedMessage ?: "त्रुटि"}", Toast.LENGTH_LONG).show()
+            stopLiveLocationSharing()
+        }
+    }
+
+    private fun stopLiveLocationSharing() {
+        val stopIntent = Intent(this, LiveLocationService::class.java).apply { action = LiveLocationService.ACTION_STOP }
+        try { startService(stopIntent); logEmergencyAction("Live Location बंद करने का अनुरोध"); Toast.makeText(this, "Live Location बंद करने का अनुरोध भेजा गया।", Toast.LENGTH_SHORT).show() }
+        catch (_: Exception) { Toast.makeText(this, "Live Location सेवा पहले से बंद हो सकती है।", Toast.LENGTH_SHORT).show() }
+    }
     private fun requestAndShareLocation() {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -1605,6 +1667,15 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
+        else if (requestCode == liveLocationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
+            val index = pendingLiveContactIndex
+            pendingLiveContactIndex = -1
+            if (index >= 0) beginLiveLocationSharing(index)
+        }
+        else if (requestCode == liveLocationPermissionRequest) {
+            pendingLiveContactIndex = -1
+            Toast.makeText(this, "Live Location के लिए Location अनुमति जरूरी है।", Toast.LENGTH_LONG).show()
+        }
         else if (requestCode == locationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) fetchOneTimeLocation()
         else if (requestCode == emergencyLocationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) fetchLocationForEmergencySms()
         else if (requestCode == emergencyLocationPermissionRequest) askToContinueWithoutLocation("लोकेशन अनुमति नहीं मिली।")
