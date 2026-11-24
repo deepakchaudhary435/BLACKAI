@@ -48,6 +48,7 @@ class MainActivity : Activity() {
     private lateinit var signalLog: TextView
     private lateinit var dashboard: TextView
     private lateinit var voiceLanguageButton: Button
+    private lateinit var mainContentView: View
     private val createBackupRequest = 51
     private val restoreBackupRequest = 52
     private val voicePermissionRequest = 61
@@ -183,6 +184,7 @@ class MainActivity : Activity() {
                         .setPositiveButton("Logout") { _, _ ->
                             firebaseAuth.signOut()
                             Toast.makeText(this@MainActivity, "आप सफलतापूर्वक लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
+                            showAuthLanding()
                         }
                         .show()
                 }
@@ -292,11 +294,62 @@ class MainActivity : Activity() {
             isFillViewport = true
             addView(layout)
         }
-        setContentView(scrollView)
+        mainContentView = scrollView
         applyPremiumTheme(scrollView)
         refreshSignalLog()
         refreshDashboard()
+        if (firebaseAuth.currentUser == null) showAuthLanding() else setContentView(mainContentView)
         checkBackupReminder()
+    }
+
+    private fun showAuthLanding() {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            setPadding(36, 64, 36, 40)
+        }
+        layout.addView(TextView(this).apply {
+            text = "BLACKAI"
+            textSize = 32f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 24, 0, 12)
+        })
+        layout.addView(TextView(this).apply {
+            text = "Smart Motion Safety"
+            textSize = 18f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, 28)
+        })
+        layout.addView(TextView(this).apply {
+            text = "ऐप के फीचर्स इस्तेमाल करने के लिए पहले अपने BLACKAI अकाउंट में Login करें या नया अकाउंट बनाएँ।"
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 8, 0, 28)
+        })
+        layout.addView(Button(this).apply {
+            text = "🔐 Login"
+            setOnClickListener { showAuthForm("login") }
+        })
+        layout.addView(Button(this).apply {
+            text = "📝 Create Account — नया अकाउंट बनाएँ"
+            setOnClickListener { showAuthForm("register") }
+        })
+        layout.addView(Button(this).apply {
+            text = "पासवर्ड भूल गए? — Reset"
+            setOnClickListener { showPasswordReset() }
+        })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(layout)
+        }
+        applyPremiumTheme(scroll)
+        setContentView(scroll)
+    }
+
+    private fun showMainApp() {
+        setContentView(mainContentView)
+        refreshSignalLog()
+        refreshDashboard()
     }
 
     override fun onResume() {
@@ -390,6 +443,7 @@ class MainActivity : Activity() {
                         "Logout" -> {
                             firebaseAuth.signOut()
                             Toast.makeText(this, "आप लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
+                            showAuthLanding()
                         }
                     }
                 }
@@ -442,6 +496,7 @@ class MainActivity : Activity() {
                         if (mode == "register") firebaseAuth.currentUser?.sendEmailVerification()
                         val message = if (mode == "register") "अकाउंट बन गया। ईमेल verification लिंक जाँचें।" else "लॉगिन सफल।"
                         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                        showMainApp()
                     } else {
                         Toast.makeText(this, "Firebase अकाउंट नहीं खुला: ${result.exception?.localizedMessage ?: "कृपया सेटिंग जाँचें"}", Toast.LENGTH_LONG).show()
                     }
