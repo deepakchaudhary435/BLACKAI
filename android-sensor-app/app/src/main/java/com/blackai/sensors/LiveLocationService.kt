@@ -92,8 +92,7 @@ class LiveLocationService : Service(), LocationListener {
             "active" to true
         )
         val ref = shareRef ?: run { stopSharing(); return }
-        // Ask Firebase to delete this record if the app/device loses its database connection.
-        ref.onDisconnect().updateChildren(mapOf("active" to false)).addOnSuccessListener {
+        val writeInitial: () -> Unit = {
             ref.setValue(initial).addOnSuccessListener {
                 isSharing = true
                 try {
@@ -111,7 +110,14 @@ class LiveLocationService : Service(), LocationListener {
                     stopSharing()
                 }
             }.addOnFailureListener { stopSharing() }
-        }.addOnFailureListener { stopSharing() }
+        }
+        // Prefer server-side deletion on disconnect; fall back to revoking access under older rules.
+        ref.onDisconnect().removeValue().addOnSuccessListener { writeInitial() }
+            .addOnFailureListener {
+                ref.onDisconnect().updateChildren(mapOf("active" to false))
+                    .addOnSuccessListener { writeInitial() }
+                    .addOnFailureListener { stopSharing() }
+            }
     }
 
     override fun onLocationChanged(location: Location) {
