@@ -172,8 +172,7 @@ class MainActivity : Activity() {
         val support=createPage("support","🆘 Help & Support","BLACKAI सहायता टीम से संपर्क")
         action(support,"समस्या या सुझाव भेजें") { showSupportCenter() }
         action(support,"मेरी सहायता रिपोर्ट और जवाब देखें") { showMySupportReports() }
-        if(firebaseAuth.currentUser?.uid=="YbAdMPt1pYP74CzKCSNnCmmyTG73")
-            action(support,"🛠️ Admin Panel — सहायता रिपोर्ट प्रबंधित करें") { showSupportAdminPanel() }
+        action(support,"🛠️ Admin Panel — सहायता रिपोर्ट प्रबंधित करें") { showSupportAdminPanel() }
 
         val profile=createPage("profile","👤 My Profile","आपका BLACKAI अकाउंट")
         action(profile,"मेरी Profile देखें") { showAccountCenter() }
@@ -188,7 +187,6 @@ class MainActivity : Activity() {
         refreshSignalLog()
         refreshDashboard()
         showIntroThenContinue()
-        checkBackupReminder()
     }
 
     private fun showIntroThenContinue() {
@@ -266,6 +264,7 @@ class MainActivity : Activity() {
         showPage("home")
         refreshSignalLog()
         refreshDashboard()
+        checkBackupReminder()
     }
 
     private fun showPage(id: String) {
