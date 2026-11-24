@@ -614,7 +614,7 @@ async function startLiveLocation(){
  const now=Date.now(), expiresAt=now+5*60*60*1000;
  const ref=liveDB.ref("liveShares/"+liveShareId);
  try{
-  await ref.onDisconnect().update({active:false});
+  try{await ref.onDisconnect().remove();}catch(disconnectDeleteError){await ref.onDisconnect().update({active:false});}
   await ref.set({uid:auth.currentUser.uid,lat:0,lng:0,updatedAt:now,expiresAt,active:true});
   const link=location.origin+location.pathname+"?live="+liveShareId;
   const c=contacts[Number(idx)];
