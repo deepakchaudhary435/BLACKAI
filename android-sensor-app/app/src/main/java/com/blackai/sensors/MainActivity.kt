@@ -178,6 +178,10 @@ class MainActivity : Activity() {
             setOnClickListener { showMySupportReports() }
         })
         layout.addView(Button(this).apply {
+            text = "🛠️ Admin Panel — सहायता रिपोर्ट प्रबंधित करें"
+            setOnClickListener { showSupportAdminPanel() }
+        })
+        layout.addView(Button(this).apply {
             text = "BLACKAI AI Assistant — Chat और History"
             setOnClickListener { showAiChatCenter() }
         })
@@ -749,6 +753,122 @@ class MainActivity : Activity() {
                             if (reply.isBlank()) "अभी जवाब नहीं आया है।" else reply
                         AlertDialog.Builder(this).setTitle("रिपोर्ट का विवरण")
                             .setMessage(detail).setPositiveButton("ठीक है", null).show()
+                    }.setNegativeButton("बंद करें", null).show()
+            }
+    }
+
+    private fun showSupportAdminPanel() {
+        val user = firebaseAuth.currentUser
+        if (user == null || user.uid != "YbAdMPt1pYP74CzKCSNnCmmyTG73") {
+            AlertDialog.Builder(this)
+                .setTitle("Admin अनुमति नहीं")
+                .setMessage("यह पैनल केवल अधिकृत BLACKAI Support Admin अकाउंट के लिए उपलब्ध है।")
+                .setPositiveButton("ठीक है", null).show()
+            return
+        }
+
+        val loading = AlertDialog.Builder(this)
+            .setTitle("BLACKAI Admin Panel")
+            .setMessage("सहायता रिपोर्ट लोड हो रही हैं…")
+            .setNegativeButton("बंद करें", null).create()
+        loading.show()
+
+        FirebaseFirestore.getInstance().collection("supportTickets")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(50).get()
+            .addOnCompleteListener(this) { task ->
+                if (!loading.isShowing) return@addOnCompleteListener
+                loading.dismiss()
+                if (!task.isSuccessful) {
+                    AlertDialog.Builder(this).setTitle("रिपोर्ट लोड नहीं हुईं")
+                        .setMessage("Firestore Admin Rules, इंटरनेट और Admin UID जाँचें।")
+                        .setPositiveButton("ठीक है", null).show()
+                    return@addOnCompleteListener
+                }
+                val docs = task.result.documents
+                if (docs.isEmpty()) {
+                    AlertDialog.Builder(this).setTitle("BLACKAI Admin Panel")
+                        .setMessage("अभी कोई सहायता रिपोर्ट उपलब्ध नहीं है।")
+                        .setPositiveButton("ठीक है", null).show()
+                    return@addOnCompleteListener
+                }
+                val labels = docs.map { doc ->
+                    val status = doc.getString("status") ?: "Pending"
+                    val dateMs = doc.getLong("createdAt") ?: 0L
+                    val date = if (dateMs > 0L) DateFormat.getDateTimeInstance().format(Date(dateMs)) else "समय नहीं"
+                    val preview = (doc.getString("message") ?: "").replace(Regex("\\s+"), " ").take(55)
+                    "$status • $date\\n$preview"
+                }
+                AlertDialog.Builder(this).setTitle("Admin Panel — रिपोर्ट (${docs.size})")
+                    .setItems(labels.toTypedArray()) { _, index ->
+                        val doc = docs[index]
+                        val userId = doc.getString("userId") ?: ""
+                        val message = doc.getString("message") ?: ""
+                        val replyInput = android.widget.EditText(this).apply {
+                            hint = "यूज़र को जवाब लिखें (अधिकतम 2000 अक्षर)"
+                            setText(doc.getString("adminReply") ?: "")
+                            minLines = 3
+                            maxLines = 6
+                            gravity = android.view.Gravity.TOP
+                        }
+                        val statuses = arrayOf("Pending", "In Progress", "Solved", "Closed")
+                        var selectedStatus = doc.getString("status") ?: "Pending"
+                        if (selectedStatus !in statuses) selectedStatus = "Pending"
+                        val statusButton = Button(this).apply {
+                            text = "स्थिति: $selectedStatus"
+                            setOnClickListener {
+                                AlertDialog.Builder(this@MainActivity)
+                                    .setTitle("रिपोर्ट की स्थिति चुनें")
+                                    .setSingleChoiceItems(statuses, statuses.indexOf(selectedStatus)) { dialog, which ->
+                                        selectedStatus = statuses[which]
+                                        text = "स्थिति: $selectedStatus"
+                                        dialog.dismiss()
+                                    }.setNegativeButton("रद्द करें", null).show()
+                            }
+                        }
+                        val panel = LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            setPadding(32, 8, 32, 0)
+                            addView(TextView(this@MainActivity).apply {
+                                text = "यूज़र ID: $userId\\n\\nरिपोर्ट:\\n$message"
+                                textSize = 14f
+                            })
+                            addView(statusButton)
+                            addView(replyInput)
+                        }
+                        val editDialog = AlertDialog.Builder(this)
+                            .setTitle("रिपोर्ट का जवाब")
+                            .setView(panel)
+                            .setNegativeButton("रद्द करें", null)
+                            .setPositiveButton("अपडेट करें", null)
+                            .create()
+                        editDialog.setOnShowListener {
+                            editDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                                val reply = replyInput.text.toString().trim()
+                                if (reply.length > 2000) {
+                                    replyInput.error = "जवाब 2000 अक्षरों से छोटा रखें"
+                                    return@setOnClickListener
+                                }
+                                editDialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+                                val update = mapOf(
+                                    "status" to selectedStatus,
+                                    "adminReply" to reply,
+                                    "adminReplyAt" to System.currentTimeMillis()
+                                )
+                                FirebaseFirestore.getInstance().collection("supportTickets")
+                                    .document(doc.id).update(update)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(this, "रिपोर्ट अपडेट हो गई।", Toast.LENGTH_LONG).show()
+                                        editDialog.dismiss()
+                                        showSupportAdminPanel()
+                                    }
+                                    .addOnFailureListener { error ->
+                                        editDialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                                        Toast.makeText(this, "अपडेट नहीं हुआ: ${error.localizedMessage ?: "अनुमति या नेटवर्क समस्या"}", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                        }
+                        editDialog.show()
                     }.setNegativeButton("बंद करें", null).show()
             }
     }
