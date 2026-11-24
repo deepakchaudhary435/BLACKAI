@@ -1087,8 +1087,8 @@ class MainActivity : Activity() {
         val numbers = (0 until arr.length()).map { arr.getJSONObject(it).optString("phone") }.filter { it.isNotBlank() }
         if (numbers.isEmpty()) { Toast.makeText(this, "संपर्क नंबर उपलब्ध नहीं हैं।", Toast.LENGTH_LONG).show(); return }
         val time = DateFormat.getDateTimeInstance().format(Date())
-        val locationLine = if (location != null) "\\nमेरी वर्तमान लोकेशन: https://maps.google.com/?q=${location.latitude},${location.longitude}" else ""
-        val message = "BLACKAI Emergency Alert: मुझे सहायता की आवश्यकता है। कृपया मुझसे संपर्क करें। समय: $time.$locationLine\\nयह लोकेशन एक बार अभी प्राप्त की गई है; यह Live Tracking नहीं है।"
+        val locationLine = if (location != null) "\nमेरी वर्तमान लोकेशन: https://maps.google.com/?q=${location.latitude},${location.longitude}" else ""
+        val message = "BLACKAI Emergency Alert: मुझे सहायता की आवश्यकता है। कृपया मुझसे संपर्क करें। समय: $time.$locationLine\nयह लोकेशन एक बार अभी प्राप्त की गई है; यह Live Tracking नहीं है।"
         AlertDialog.Builder(this).setTitle("Emergency SMS जाँचें")
             .setMessage("SMS ऐप खुलेगा। प्राप्तकर्ता और संदेश जाँचकर आप स्वयं Send दबाएँगे। BLACKAI अपने आप SMS नहीं भेजेगा।")
             .setNegativeButton("रद्द करें", null).setPositiveButton("SMS ऐप खोलें") { _, _ ->
