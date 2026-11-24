@@ -57,6 +57,7 @@ class LiveLocationService : Service(), LocationListener {
         expiresAt = expiry
         getSharedPreferences("blackai_live_location", MODE_PRIVATE).edit()
             .putString("share_id", id)
+            .putString("owner_uid", uid)
             .putLong("expires_at", expiry)
             .apply()
         shareRef = FirebaseDatabase.getInstance().reference.child("liveShares").child(id)
