@@ -91,23 +91,27 @@ class LiveLocationService : Service(), LocationListener {
             "expiresAt" to expiresAt,
             "active" to true
         )
-        shareRef?.setValue(initial)?.addOnSuccessListener {
-            isSharing = true
-            try {
-                var requested = false
-                for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
-                    if (manager.isProviderEnabled(provider)) {
-                        manager.requestLocationUpdates(provider, 10000L, 10f, this, Looper.getMainLooper())
-                        requested = true
+        val ref = shareRef ?: run { stopSharing(); return }
+        // Ask Firebase to delete this record if the app/device loses its database connection.
+        ref.onDisconnect().removeValue().addOnSuccessListener {
+            ref.setValue(initial).addOnSuccessListener {
+                isSharing = true
+                try {
+                    var requested = false
+                    for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+                        if (manager.isProviderEnabled(provider)) {
+                            manager.requestLocationUpdates(provider, 10000L, 10f, this, Looper.getMainLooper())
+                            requested = true
+                        }
                     }
+                    if (!requested) stopSharing()
+                } catch (_: SecurityException) {
+                    stopSharing()
+                } catch (_: Exception) {
+                    stopSharing()
                 }
-                if (!requested) stopSharing()
-            } catch (_: SecurityException) {
-                stopSharing()
-            } catch (_: Exception) {
-                stopSharing()
-            }
-        }?.addOnFailureListener { stopSharing() }
+            }.addOnFailureListener { stopSharing() }
+        }.addOnFailureListener { stopSharing() }
     }
 
     override fun onLocationChanged(location: Location) {
