@@ -55,6 +55,10 @@ class LiveLocationService : Service(), LocationListener {
         }
         shareId = id
         expiresAt = expiry
+        getSharedPreferences("blackai_live_location", MODE_PRIVATE).edit()
+            .putString("share_id", id)
+            .putLong("expires_at", expiry)
+            .apply()
         shareRef = FirebaseDatabase.getInstance().reference.child("liveShares").child(id)
         createNotificationChannel()
         val notification = buildNotification()
@@ -172,9 +176,12 @@ class LiveLocationService : Service(), LocationListener {
         try { locationManager?.removeUpdates(this) } catch (_: Exception) {}
         locationManager = null
         isSharing = false
-        shareRef?.updateChildren(mapOf("active" to false, "updatedAt" to System.currentTimeMillis()))
+        val refToDelete = shareRef
         shareRef = null
         shareId = null
+        // Delete coordinates on Stop or normal expiry; database rules also deny reads after expiry.
+        refToDelete?.removeValue()
+        getSharedPreferences("blackai_live_location", MODE_PRIVATE).edit().clear().apply()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
         else stopForeground(true)
         stopSelf()
@@ -183,6 +190,11 @@ class LiveLocationService : Service(), LocationListener {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         try { locationManager?.removeUpdates(this) } catch (_: Exception) {}
+        val refToDelete = shareRef
+        shareRef = null
+        if (isSharing) refToDelete?.removeValue()
+        isSharing = false
+        getSharedPreferences("blackai_live_location", MODE_PRIVATE).edit().clear().apply()
         super.onDestroy()
     }
 
