@@ -26,6 +26,8 @@ import android.widget.Toast
 import org.json.JSONObject
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.Firebase
 import com.google.firebase.initialize
 import com.google.firebase.appcheck.appCheck
@@ -626,11 +628,9 @@ class MainActivity : Activity() {
     private fun showSupportCenter() {
         val user = firebaseAuth.currentUser
         if (user == null) {
-            AlertDialog.Builder(this)
-                .setTitle("पहले Login करें")
+            AlertDialog.Builder(this).setTitle("पहले Login करें")
                 .setMessage("सहायता रिपोर्ट आपके BLACKAI अकाउंट से जोड़ी जाएगी। पहले Firebase Login करें।")
-                .setPositiveButton("ठीक है", null)
-                .show()
+                .setPositiveButton("ठीक है", null).show()
             return
         }
         val input = android.widget.EditText(this).apply {
@@ -658,34 +658,36 @@ class MainActivity : Activity() {
                     input.error = "5 से 2000 अक्षर लिखें"
                     return@setOnClickListener
                 }
-                val ticket = mapOf(
+                val ticket = hashMapOf<String, Any>(
                     "userId" to user.uid,
                     "message" to message,
                     "createdAt" to System.currentTimeMillis(),
-                    "status" to "open",
-                    "adminReply" to ""
+                    "status" to "Pending",
+                    "priority" to "Medium",
+                    "adminReply" to "",
+                    "adminReplyAt" to 0L
                 )
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                 try {
-                    val ref = FirebaseDatabase.getInstance().reference.child("supportTickets").child(user.uid).push()
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-                    ref.setValue(ticket).addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
+                    FirebaseFirestore.getInstance().collection("supportTickets")
+                        .add(ticket)
+                        .addOnSuccessListener {
                             logEmergencyAction("BLACKAI सहायता रिपोर्ट भेजी")
                             Toast.makeText(this, "रिपोर्ट भेज दी गई।", Toast.LENGTH_LONG).show()
                             dialog.dismiss()
-                        } else {
-                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
-                            Toast.makeText(this, "रिपोर्ट नहीं भेजी गई। Firebase Database Rules और इंटरनेट जाँचें।", Toast.LENGTH_LONG).show()
                         }
-                    }
+                        .addOnFailureListener {
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                            Toast.makeText(this, "रिपोर्ट नहीं भेजी गई। Firestore Rules लागू हैं या नहीं, जाँचें।", Toast.LENGTH_LONG).show()
+                        }
                 } catch (_: Exception) {
-                    Toast.makeText(this, "Firebase Database उपलब्ध नहीं है। सेटअप जाँचें।", Toast.LENGTH_LONG).show()
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                    Toast.makeText(this, "Firestore उपलब्ध नहीं है। सेटअप जाँचें।", Toast.LENGTH_LONG).show()
                 }
             }
         }
         dialog.show()
     }
-
 
     private fun showMySupportReports() {
         val user = firebaseAuth.currentUser
@@ -698,60 +700,57 @@ class MainActivity : Activity() {
         val loading = AlertDialog.Builder(this).setTitle("मेरी सहायता रिपोर्ट")
             .setMessage("रिपोर्ट लोड हो रही हैं…").setNegativeButton("बंद करें", null).create()
         loading.show()
-        try {
-            FirebaseDatabase.getInstance().reference.child("supportTickets").child(user.uid)
-                .limitToLast(20).get().addOnCompleteListener(this) { task ->
-                    if (!loading.isShowing) return@addOnCompleteListener
-                    loading.dismiss()
-                    if (!task.isSuccessful) {
-                        AlertDialog.Builder(this).setTitle("रिपोर्ट नहीं खुलीं")
-                            .setMessage("Firebase Database Rules, इंटरनेट और अकाउंट अनुमति जाँचें।")
-                            .setPositiveButton("ठीक है", null).show()
-                        return@addOnCompleteListener
+        FirebaseFirestore.getInstance().collection("supportTickets")
+            .whereEqualTo("userId", user.uid)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(20).get()
+            .addOnCompleteListener(this) { task ->
+                if (!loading.isShowing) return@addOnCompleteListener
+                loading.dismiss()
+                if (!task.isSuccessful) {
+                    AlertDialog.Builder(this).setTitle("रिपोर्ट नहीं खुलीं")
+                        .setMessage("Firestore Rules, इंटरनेट और अकाउंट अनुमति जाँचें।")
+                        .setPositiveButton("ठीक है", null).show()
+                    return@addOnCompleteListener
+                }
+                val rows = task.result.documents
+                if (rows.isEmpty()) {
+                    AlertDialog.Builder(this).setTitle("मेरी सहायता रिपोर्ट")
+                        .setMessage("अभी आपने कोई रिपोर्ट नहीं भेजी है। पुरानी Realtime Database रिपोर्टें अभी वहीं सुरक्षित हैं।")
+                        .setPositiveButton("ठीक है", null).show()
+                    return@addOnCompleteListener
+                }
+                val labels = rows.map { doc ->
+                    val statusValue = doc.getString("status") ?: "Pending"
+                    val dateValue = doc.getLong("createdAt") ?: 0L
+                    val date = if (dateValue > 0L) DateFormat.getDateTimeInstance().format(Date(dateValue)) else "समय उपलब्ध नहीं"
+                    val state = when (statusValue.lowercase()) {
+                        "answered", "replied", "resolved", "solved" -> "जवाब मिल गया"
+                        "closed" -> "बंद"
+                        "in_progress" -> "जाँच जारी"
+                        else -> "जाँच जारी"
                     }
-                    val rows = task.result.children.toList()
-                        .sortedByDescending { it.child("createdAt").getValue(Long::class.java) ?: 0L }
-                    if (rows.isEmpty()) {
-                        AlertDialog.Builder(this).setTitle("मेरी सहायता रिपोर्ट")
-                            .setMessage("अभी आपने कोई रिपोर्ट नहीं भेजी है।")
-                            .setPositiveButton("ठीक है", null).show()
-                        return@addOnCompleteListener
-                    }
-                    val labels = rows.map { snap ->
-                        val statusValue = snap.child("status").getValue(String::class.java) ?: "open"
-                        val dateValue = snap.child("createdAt").getValue(Long::class.java) ?: 0L
+                    "$state • $date"
+                }
+                AlertDialog.Builder(this).setTitle("मेरी सहायता रिपोर्ट")
+                    .setItems(labels.toTypedArray()) { _, index ->
+                        val doc = rows[index]
+                        val message = doc.getString("message") ?: ""
+                        val reply = doc.getString("adminReply") ?: ""
+                        val statusValue = doc.getString("status") ?: "Pending"
+                        val dateValue = doc.getLong("createdAt") ?: 0L
                         val date = if (dateValue > 0L) DateFormat.getDateTimeInstance().format(Date(dateValue)) else "समय उपलब्ध नहीं"
-                        val state = when (statusValue.lowercase()) {
-                            "answered", "replied", "resolved" -> "जवाब मिल गया"
+                        val statusLabel = when (statusValue.lowercase()) {
+                            "answered", "replied", "resolved", "solved" -> "जवाब दिया गया"
                             "closed" -> "बंद"
                             else -> "जाँच जारी"
                         }
-                        "$state • $date"
-                    }
-                    AlertDialog.Builder(this).setTitle("मेरी सहायता रिपोर्ट")
-                        .setItems(labels.toTypedArray()) { _, index ->
-                            val snap = rows[index]
-                            val message = snap.child("message").getValue(String::class.java) ?: ""
-                            val reply = snap.child("adminReply").getValue(String::class.java)
-                                ?: snap.child("reply").getValue(String::class.java) ?: ""
-                            val statusValue = snap.child("status").getValue(String::class.java) ?: "open"
-                            val dateValue = snap.child("createdAt").getValue(Long::class.java) ?: 0L
-                            val date = if (dateValue > 0L) DateFormat.getDateTimeInstance().format(Date(dateValue)) else "समय उपलब्ध नहीं"
-                            val statusLabel = when (statusValue.lowercase()) {
-                                "answered", "replied", "resolved" -> "जवाब दिया गया"
-                                "closed" -> "बंद"
-                                else -> "जाँच जारी"
-                            }
-                            val detail = "तारीख: $date\\nस्थिति: $statusLabel\\n\\nआपकी रिपोर्ट:\\n$message\\n\\nसहायता टीम का जवाब:\\n" +
-                                if (reply.isBlank()) "अभी जवाब नहीं आया है।" else reply
-                            AlertDialog.Builder(this).setTitle("रिपोर्ट का विवरण")
-                                .setMessage(detail).setPositiveButton("ठीक है", null).show()
-                        }.setNegativeButton("बंद करें", null).show()
-                }
-        } catch (_: Exception) {
-            if (loading.isShowing) loading.dismiss()
-            Toast.makeText(this, "Firebase Database उपलब्ध नहीं है।", Toast.LENGTH_LONG).show()
-        }
+                        val detail = "तारीख: $date\\nस्थिति: $statusLabel\\nPriority: ${doc.getString("priority") ?: "Medium"}\\n\\nआपकी रिपोर्ट:\\n$message\\n\\nसहायता टीम का जवाब:\\n" +
+                            if (reply.isBlank()) "अभी जवाब नहीं आया है।" else reply
+                        AlertDialog.Builder(this).setTitle("रिपोर्ट का विवरण")
+                            .setMessage(detail).setPositiveButton("ठीक है", null).show()
+                    }.setNegativeButton("बंद करें", null).show()
+            }
     }
 
     private fun emergencyPrefs() = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
