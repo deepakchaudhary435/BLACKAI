@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // BLACKAI Support: one document per ticket.
+    // Users may create tickets and read only their own tickets.
+    // Only the existing, explicitly allowlisted support administrator may read all
+    // tickets or change status/reply fields.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSupportAdmin() {
+      return signedIn()
+        && request.auth.uid == 'YbAdMPt1pYP74CzKCSNnCmmyTG73';
+    }
+
+    match /supportTickets/{ticketId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'userId', 'message', 'createdAt', 'status', 'adminReply'
+        ])
+        && request.resource.data.keys().hasAll([
+          'userId', 'message', 'createdAt', 'status', 'adminReply'
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 5
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.createdAt is int
+        && request.resource.data.status == 'open'
+        && request.resource.data.adminReply == '';
+
+      // A user's list query must constrain userId == request.auth.uid.
+      // The admin may list the full collection.
+      allow get, list: if signedIn()
+        && (resource.data.userId == request.auth.uid || isSupportAdmin());
+
+      allow update: if isSupportAdmin()
+        && request.resource.data.keys().hasOnly([
+          'userId', 'message', 'createdAt', 'status', 'adminReply'
+        ])
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.message == resource.data.message
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status is string
+        && request.resource.data.status in ['open', 'in_progress', 'solved', 'closed']
+        && request.resource.data.adminReply is string
+        && request.resource.data.adminReply.size() <= 2000;
+
+      allow delete: if isSupportAdmin();
+    }
+
+    // Everything else remains denied until a feature has its own reviewed rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
