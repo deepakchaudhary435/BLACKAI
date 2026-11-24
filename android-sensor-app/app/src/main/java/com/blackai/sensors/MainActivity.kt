@@ -569,10 +569,15 @@ class MainActivity : Activity() {
                     .setMessage("आपकी लोकेशन चुने हुए संपर्क के साथ अधिकतम 5 घंटे शेयर होगी। लिंक पाने वाला व्यक्ति आपकी लोकेशन देख सकेगा। फोन पर स्थायी नोटिफिकेशन रहेगा और आप कभी भी Stop कर सकते हैं। SMS अपने आप नहीं भेजा जाएगा।")
                     .setNegativeButton("रद्द करें", null)
                     .setPositiveButton("मैं सहमत हूँ — आगे बढ़ें") { _, _ ->
-                        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                            pendingLiveContactIndex = index
+                        pendingLiveContactIndex = index
+                        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 73)
+                        } else if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), liveLocationPermissionRequest)
-                        } else beginLiveLocationSharing(index)
+                        } else {
+                            pendingLiveContactIndex = -1
+                            beginLiveLocationSharing(index)
+                        }
                     }.show()
             }.setNegativeButton("बंद करें", null).show()
     }
@@ -1667,6 +1672,19 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
+        else if (requestCode == 73 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            val index = pendingLiveContactIndex
+            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), liveLocationPermissionRequest)
+            } else {
+                pendingLiveContactIndex = -1
+                if (index >= 0) beginLiveLocationSharing(index)
+            }
+        }
+        else if (requestCode == 73) {
+            pendingLiveContactIndex = -1
+            Toast.makeText(this, "Live Location के लिए स्थायी नोटिफिकेशन अनुमति जरूरी है।", Toast.LENGTH_LONG).show()
+        }
         else if (requestCode == liveLocationPermissionRequest && grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
             val index = pendingLiveContactIndex
             pendingLiveContactIndex = -1
