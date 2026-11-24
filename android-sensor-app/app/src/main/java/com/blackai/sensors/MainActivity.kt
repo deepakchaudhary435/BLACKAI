@@ -65,241 +65,154 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Test-build only: use App Check debug attestation while developing on a physical device.
-        // The generated debug secret must be registered privately in Firebase Console.
         if (BuildConfig.DEBUG) {
             Firebase.initialize(context = this)
-            Firebase.appCheck.installAppCheckProviderFactory(
-                DebugAppCheckProviderFactory.getInstance()
-            )
+            Firebase.appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
         }
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 48, 32, 32)
+        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(9,16,31)) }
+        root.addView(TextView(this).apply { text="BLACKAI  •  PERSONAL SAFETY"; textSize=19f; gravity=android.view.Gravity.CENTER; setTextColor(Color.WHITE); setPadding(16,18,16,16) })
+        pageHost=android.widget.FrameLayout(this)
+        root.addView(pageHost,LinearLayout.LayoutParams(-1,0,1f))
+        val nav=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=android.view.Gravity.CENTER; setPadding(4,8,4,8); setBackgroundColor(Color.rgb(14,25,43)) }
+        listOf(Triple("home","⌂","Home"),Triple("safety","🛡️","Safety"),Triple("emergency","🚨","SOS"),Triple("support","🆘","Support"),Triple("profile","👤","Profile")).forEach { item ->
+            nav.addView(Button(this).apply {
+                text=item.second+"\n"+item.third; textSize=11f; isAllCaps=false; setTextColor(Color.WHITE); setPadding(2,8,2,8)
+                background=GradientDrawable().apply { setColor(Color.rgb(19,31,51)); cornerRadius=18f }
+                setOnClickListener { showPage(item.first) }
+            },LinearLayout.LayoutParams(0,-2,1f).apply { setMargins(3,0,3,0) })
         }
-        layout.addView(TextView(this).apply {
-            text = "BLACKAI — Smart Motion Safety"
-            textSize = 24f
-        })
-        layout.addView(TextView(this).apply {
-            text = "यह शुरुआती परीक्षण है। सेंसर केवल तेज़ गति/झटके जैसा संकेत दर्ज कर सकता है; यह किसी अपराध, गिरने या आपातकाल की पुष्टि नहीं करता। कोई पुलिस या संपर्क अलर्ट नहीं भेजा जाता।"
-            textSize = 16f
-            setPadding(0, 24, 0, 24)
-        })
-        status = TextView(this).apply { text = "Monitoring बंद है"; textSize = 16f }
-        layout.addView(status)
-        layout.addView(TextView(this).apply {
-            text = "BLACKAI — Status Dashboard"
-            textSize = 20f
-            setPadding(0, 20, 0, 8)
-        })
-        dashboard = TextView(this).apply {
-            textSize = 16f
-            setPadding(16, 12, 16, 12)
+        root.addView(nav); mainContentView=root
+        fun createPage(id:String,title:String,subtitle:String):LinearLayout {
+            val body=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(22,22,22,28) }
+            body.addView(TextView(this).apply { text=title; textSize=24f; setTextColor(Color.rgb(74,220,218)); setPadding(0,4,0,8) })
+            body.addView(TextView(this).apply { text=subtitle; textSize=14f; setTextColor(Color.rgb(190,204,222)); setPadding(0,0,0,18) })
+            pageViews[id]=ScrollView(this).apply { isFillViewport=true; addView(body); setBackgroundColor(Color.rgb(9,16,31)) }
+            return body
         }
-        layout.addView(dashboard)
-        layout.addView(Button(this).apply {
-            text = "🛡️ Emergency Control Center"
-            setOnClickListener { showEmergencyControlCenter() }
-        })
-        layout.addView(Button(this).apply {
-            text = "🕘 Recent Activity — हाल की गतिविधियाँ"
-            setOnClickListener { showRecentActivity() }
-        })
-        layout.addView(Button(this).apply {
-            text = "मैं सहमत हूँ — Motion Monitoring शुरू करें"
-            setOnClickListener {
-                if (Build.VERSION.SDK_INT >= 33 &&
-                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 41)
-                } else startMonitoring()
-            }
-        })
-        layout.addView(Button(this).apply {
-            text = "Monitoring बंद करें"
-            setOnClickListener {
-                stopService(Intent(this@MainActivity, MotionMonitorService::class.java))
-                status.text = "Monitoring बंद है"
-                refreshDashboard()
-            }
-        })
-        layout.addView(TextView(this).apply {
-            text = "Voice Safety — प्रयोगात्मक"
-            textSize = 20f
-            setPadding(0, 28, 0, 8)
-        })
-        layout.addView(TextView(this).apply {
-            text = "यह प्रयोगात्मक सुविधा Android 10+ पर उपलब्ध speech-recognition सेवा से बोले गए शब्द पहचानने की कोशिश करेगी। पहचान सेवा के अनुसार ऑडियो नेटवर्क पर प्रोसेस हो सकता है। यह परिवार/पुलिस को संदेश या कॉल नहीं भेजती और रोने/चीखने की पहचान नहीं करती।"
-            textSize = 14f
-            setPadding(0, 0, 0, 8)
-        })
-        voiceLanguageButton = Button(this).apply {
-            text = "Voice भाषा चुनें: " + currentVoiceLanguageName()
-            setOnClickListener { chooseVoiceLanguage() }
+        fun action(page:LinearLayout,label:String,detail:String="",click:()->Unit) {
+            page.addView(Button(this).apply {
+                text=if(detail.isBlank()) label else "$label\n$detail"; textSize=15f; isAllCaps=false; minHeight=58
+                gravity=android.view.Gravity.CENTER_VERTICAL; setTextColor(Color.WHITE); setPadding(20,12,20,12)
+                background=GradientDrawable().apply { setColor(Color.rgb(19,31,51)); cornerRadius=22f; setStroke(1,Color.rgb(50,104,145)) }
+                setOnClickListener { click() }
+            },LinearLayout.LayoutParams(-1,-2).apply { setMargins(0,6,0,6) })
         }
-        layout.addView(voiceLanguageButton)
-        layout.addView(Button(this).apply {
-            text = "मैं सहमत हूँ — Voice Detection शुरू करें"
-            setOnClickListener {
-                val permissions = if (Build.VERSION.SDK_INT >= 33)
-                    arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
-                else arrayOf(Manifest.permission.RECORD_AUDIO)
-                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(permissions, voicePermissionRequest)
-                } else startVoiceMonitoring()
-            }
-        })
-        layout.addView(Button(this).apply {
-            text = "Voice Detection बंद करें"
-            setOnClickListener {
-                stopService(Intent(this@MainActivity, VoiceMonitorService::class.java))
-                status.text = "Voice Detection बंद करने का अनुरोध भेजा गया।"
-                refreshDashboard()
-            }
-        })
-        layout.addView(TextView(this).apply {
-            text = "BLACKAI — अकाउंट और प्रोफाइल"
-            textSize = 20f
-            setPadding(0, 28, 0, 8)
-        })
-        layout.addView(TextView(this).apply {
-            text = "Firebase ईमेल अकाउंट से लॉगिन/रजिस्ट्रेशन करें। प्रोफाइल की जानकारी इसी अकाउंट से दिखाई जाएगी।"
-            textSize = 14f
-        })
-        layout.addView(Button(this).apply {
-            text = "Firebase Login / मेरी Profile"
-            setOnClickListener { showAccountCenter() }
-        })
-        layout.addView(Button(this).apply {
-            text = "🚪 Logout — अकाउंट से बाहर निकलें"
-            setOnClickListener {
-                val user = firebaseAuth.currentUser
-                if (user == null) {
-                    Toast.makeText(this@MainActivity, "अभी कोई अकाउंट लॉगिन नहीं है।", Toast.LENGTH_SHORT).show()
-                } else {
-                    AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Logout करें?")
-                        .setMessage("क्या आप ${user.email ?: "इस अकाउंट"} से लॉगआउट करना चाहते हैं?")
-                        .setNegativeButton("रद्द करें", null)
-                        .setPositiveButton("Logout") { _, _ ->
-                            firebaseAuth.signOut()
-                            Toast.makeText(this@MainActivity, "आप सफलतापूर्वक लॉगआउट हो गए।", Toast.LENGTH_SHORT).show()
-                            showAuthLanding()
-                        }
-                        .show()
-                }
-            }
-        })
-        layout.addView(Button(this).apply {
-            text = "BLACKAI सहायता केंद्र — समस्या भेजें"
-            setOnClickListener { showSupportCenter() }
-        })
-        layout.addView(Button(this).apply {
-            text = "मेरी सहायता रिपोर्ट और जवाब देखें"
-            setOnClickListener { showMySupportReports() }
-        })
-        layout.addView(Button(this).apply {
-            text = "🛠️ Admin Panel — सहायता रिपोर्ट प्रबंधित करें"
-            setOnClickListener { showSupportAdminPanel() }
-        })
-        layout.addView(Button(this).apply {
-            text = "BLACKAI AI Assistant — Chat और History"
-            setOnClickListener { showAiChatCenter() }
-        })
-        if (BuildConfig.DEBUG) {
-            layout.addView(Button(this).apply {
-                text = "App Check जाँच (अस्थायी Debug)"
-                setOnClickListener { showAppCheckDiagnostics() }
-            })
+        fun info(page:LinearLayout,message:String) {
+            page.addView(TextView(this).apply { text=message; textSize=14f; setTextColor(Color.rgb(190,204,222)); setPadding(4,10,4,14) })
         }
-        layout.addView(TextView(this).apply {
-            text = "BLACKAI — लोकेशन साझा करें"
-            textSize = 20f
-            setPadding(0, 28, 0, 8)
-        })
-        layout.addView(TextView(this).apply {
-            text = "लोकेशन केवल आपके बटन दबाने और अनुमति देने पर एक बार ली जाएगी। बैकग्राउंड में ट्रैकिंग नहीं होगी; भेजने से पहले आप शेयर स्क्रीन में प्राप्तकर्ता चुनेंगे।"
-            textSize = 14f
-        })
-        layout.addView(Button(this).apply {
-            text = "मेरी वर्तमान लोकेशन साझा करें"
-            setOnClickListener { requestAndShareLocation() }
-        })
-        layout.addView(TextView(this).apply {
-            text = "BLACKAI — सुरक्षा केंद्र"
-            textSize = 22f
-            setPadding(0, 28, 0, 8)
-        })
-        layout.addView(TextView(this).apply {
-            text = "यहाँ से आपातकालीन कॉल स्क्रीन खोलें, भरोसेमंद संपर्क सेव करें और SMS स्वयं जाँचकर भेजने के लिए तैयार करें। BLACKAI अपने आप कॉल या संदेश नहीं भेजेगा।"
-            textSize = 14f
-        })
-        layout.addView(Button(this).apply {
-            text = "आपातकालीन सहायता — 112 कॉल स्क्रीन"
-            setOnClickListener { confirmEmergencyDial() }
-        })
-        layout.addView(Button(this).apply {
-            text = "भरोसेमंद संपर्क जोड़ें"
-            setOnClickListener { addTrustedContact() }
-        })
-        layout.addView(Button(this).apply {
-            text = "मेरे भरोसेमंद संपर्क देखें"
-            setOnClickListener { showTrustedContacts() }
-        })
-        layout.addView(Button(this).apply {
-            text = "आपातकालीन SMS तैयार करें"
-            setOnClickListener { prepareEmergencySms() }
-        })
-        layout.addView(Button(this).apply {
-            text = "🚨 Emergency Alert — अलर्ट तैयार करें"
-            setOnClickListener { confirmEmergencyAlert() }
-        })
-        layout.addView(Button(this).apply {
-            text = "सुरक्षा चेकलिस्ट"
-            setOnClickListener { showSafetyChecklist() }
-        })
-        layout.addView(Button(this).apply {
-            text = "आपातकालीन गतिविधि इतिहास"
-            setOnClickListener { showEmergencyHistory() }
-        })
-        layout.addView(TextView(this).apply {
-            text = "स्थानीय सेंसर लॉग"
-            textSize = 20f
-            setPadding(0, 28, 0, 8)
-        })
-        signalLog = TextView(this).apply { textSize = 15f }
-        layout.addView(signalLog)
-        layout.addView(Button(this).apply {
-            text = "Backup History — फ़ाइल में सेव करें"
-            setOnClickListener { createBackupFile() }
-        })
-        layout.addView(Button(this).apply {
-            text = "Restore History — बैकअप वापस लाएँ"
-            setOnClickListener { chooseBackupFile() }
-        })
-        layout.addView(Button(this).apply {
-            text = "Export History / साझा करें"
-            setOnClickListener { exportHistory() }
-        })
-        layout.addView(Button(this).apply {
-            text = "Delete History / इतिहास मिटाएँ"
-            setOnClickListener { confirmClearHistory() }
-        })
-        layout.addView(TextView(this).apply {
-            text = "Backup से JSON फ़ाइल बनेगी। उसे Downloads में सुरक्षित रखें। ऐप uninstall करने के बाद दोबारा install करके Restore History से वही फ़ाइल चुनें। Delete History करने से ऐप का स्थानीय रिकॉर्ड मिटेगा; पहले बैकअप सुरक्षित कर लें।"
-            textSize = 13f
-            setPadding(0, 12, 0, 24)
-        })
-        val scrollView = ScrollView(this).apply {
-            isFillViewport = true
-            addView(layout)
+        val home=createPage("home","Welcome to BLACKAI","आपकी सुरक्षा, हमारी प्राथमिकता")
+        status=TextView(this).apply { text="Monitoring बंद है"; textSize=15f; setTextColor(Color.WHITE); setPadding(14,12,14,12); background=GradientDrawable().apply { setColor(Color.rgb(19,31,51)); cornerRadius=16f } }
+        home.addView(status)
+        dashboard=TextView(this).apply { textSize=15f; setTextColor(Color.WHITE); setPadding(14,14,14,14); background=GradientDrawable().apply { setColor(Color.rgb(19,31,51)); cornerRadius=16f } }
+        home.addView(TextView(this).apply { text="आपका Safety Dashboard"; textSize=19f; setTextColor(Color.rgb(74,220,218)); setPadding(0,20,0,8) })
+        home.addView(dashboard)
+        info(home,"हर सुविधा अपने अलग पेज पर खुलेगी। आपातकाल में BLACKAI को अकेला सहायता माध्यम न मानें।")
+        action(home,"🛡️ Safety Tools","Motion और Voice Detection") { showPage("safety") }
+        action(home,"🚨 Emergency & SOS","112, Emergency Tools और Checklist") { showPage("emergency") }
+        action(home,"📍 Location Sharing","आपकी अनुमति से लोकेशन साझा करें") { showPage("location") }
+        action(home,"👥 Trusted Contacts","संपर्क जोड़ें और देखें") { showPage("contacts") }
+        action(home,"🤖 BLACKAI Assistant","AI Chat और History") { showPage("assistant") }
+        action(home,"🕘 Activity & History","Recent Activity और Sensor Log") { showPage("history") }
+        action(home,"💾 Backup & Recovery","Backup, Restore और Export") { showPage("backup") }
+        action(home,"🆘 Help & Support","रिपोर्ट भेजें और जवाब देखें") { showPage("support") }
+        action(home,"👤 My Profile","अकाउंट और Logout") { showPage("profile") }
+
+        val safety=createPage("safety","🛡️ Safety Tools","सेंसर आधारित प्रयोगात्मक सुरक्षा संकेत")
+        info(safety,"Motion केवल तेज़ गति/झटके जैसा संकेत दर्ज करता है। Voice Detection बोले गए शब्द पहचानने की कोशिश करती है। ये किसी अपराध या आपातकाल की पुष्टि नहीं करते।")
+        action(safety,"Motion Monitoring शुरू करें","स्थायी Notification आवश्यक") {
+            if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),41) else startMonitoring()
         }
-        mainContentView = scrollView
-        applyPremiumTheme(scrollView)
+        action(safety,"Motion Monitoring बंद करें") { stopService(Intent(this,MotionMonitorService::class.java)); status.text="Monitoring बंद है"; refreshDashboard() }
+        voiceLanguageButton=Button(this).apply { text="Voice भाषा चुनें: "+currentVoiceLanguageName(); isAllCaps=false; setOnClickListener { chooseVoiceLanguage() } }
+        safety.addView(voiceLanguageButton)
+        action(safety,"Voice Detection शुरू करें","माइक्रोफोन अनुमति आवश्यक") {
+            val permissions=if(Build.VERSION.SDK_INT>=33) arrayOf(Manifest.permission.RECORD_AUDIO,Manifest.permission.POST_NOTIFICATIONS) else arrayOf(Manifest.permission.RECORD_AUDIO)
+            if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) requestPermissions(permissions,voicePermissionRequest) else startVoiceMonitoring()
+        }
+        action(safety,"Voice Detection बंद करें") { stopService(Intent(this,VoiceMonitorService::class.java)); status.text="Voice Detection बंद करने का अनुरोध भेजा गया।"; refreshDashboard() }
+
+        val emergency=createPage("emergency","🚨 Emergency & SOS","आपातकालीन सहायता के लिए जरूरी टूल")
+        info(emergency,"BLACKAI अपने आप पुलिस या संपर्कों को कॉल/SMS नहीं भेजता। SMS भेजने से पहले आप संदेश जाँचेंगे।")
+        action(emergency,"112 Emergency Call","फोन का Dialer खुलेगा") { confirmEmergencyDial() }
+        action(emergency,"Emergency Control Center") { showEmergencyControlCenter() }
+        action(emergency,"Emergency Alert तैयार करें") { confirmEmergencyAlert() }
+        action(emergency,"Emergency SMS तैयार करें") { prepareEmergencySms() }
+        action(emergency,"Safety Checklist") { showSafetyChecklist() }
+        action(emergency,"Emergency Activity History") { showEmergencyHistory() }
+
+        val location=createPage("location","📍 Location Sharing","लोकेशन केवल आपकी स्पष्ट अनुमति पर")
+        info(location,"बटन दबाने और Android अनुमति देने पर एक बार लोकेशन ली जाएगी। बैकग्राउंड ट्रैकिंग नहीं होगी। भेजने से पहले आप प्राप्तकर्ता चुनेंगे।")
+        action(location,"मेरी वर्तमान लोकेशन साझा करें") { requestAndShareLocation() }
+
+        val contacts=createPage("contacts","👥 Trusted Contacts","अपने भरोसेमंद संपर्क मैनेज करें")
+        action(contacts,"भरोसेमंद संपर्क जोड़ें") { addTrustedContact() }
+        action(contacts,"मेरे भरोसेमंद संपर्क देखें") { showTrustedContacts() }
+
+        val assistant=createPage("assistant","🤖 BLACKAI Assistant","AI Chat और History")
+        info(assistant,"AI जवाब इंटरनेट और उपलब्ध सेवा पर निर्भर करते हैं।")
+        action(assistant,"AI Assistant खोलें") { showAiChatCenter() }
+
+        val history=createPage("history","🕘 Activity & History","फोन में सेव स्थानीय रिकॉर्ड")
+        signalLog=TextView(this).apply { textSize=14f; setTextColor(Color.WHITE); setPadding(12,12,12,12) }
+        history.addView(signalLog)
+        action(history,"Recent Activity") { showRecentActivity() }
+        action(history,"Emergency Activity History") { showEmergencyHistory() }
+        action(history,"Refresh Sensor Log") { refreshSignalLog(); refreshDashboard(); Toast.makeText(this,"History अपडेट हुई।",Toast.LENGTH_SHORT).show() }
+
+        val backup=createPage("backup","💾 Backup & Recovery","अपना स्थानीय डेटा सुरक्षित रखें")
+        info(backup,"Backup फ़ाइल निजी रखें। Restore करने से मौजूदा स्थानीय रिकॉर्ड बदल सकते हैं।")
+        action(backup,"Backup History — फ़ाइल में सेव करें") { createBackupFile() }
+        action(backup,"Restore History — बैकअप वापस लाएँ") { chooseBackupFile() }
+        action(backup,"Export History / साझा करें") { exportHistory() }
+        action(backup,"Delete History / इतिहास मिटाएँ") { confirmClearHistory() }
+
+        val support=createPage("support","🆘 Help & Support","BLACKAI सहायता टीम से संपर्क")
+        action(support,"समस्या या सुझाव भेजें") { showSupportCenter() }
+        action(support,"मेरी सहायता रिपोर्ट और जवाब देखें") { showMySupportReports() }
+        if(firebaseAuth.currentUser?.uid=="YbAdMPt1pYP74CzKCSNnCmmyTG73")
+            action(support,"🛠️ Admin Panel — सहायता रिपोर्ट प्रबंधित करें") { showSupportAdminPanel() }
+
+        val profile=createPage("profile","👤 My Profile","आपका BLACKAI अकाउंट")
+        action(profile,"मेरी Profile देखें") { showAccountCenter() }
+        action(profile,"🚪 Logout — अकाउंट से बाहर निकलें") {
+            val user=firebaseAuth.currentUser
+            if(user==null) showAuthLanding() else AlertDialog.Builder(this).setTitle("Logout करें?")
+                .setMessage("क्या आप "+(user.email ?: "इस अकाउंट")+" से लॉगआउट करना चाहते हैं?")
+                .setNegativeButton("रद्द करें",null)
+                .setPositiveButton("Logout") { _,_ -> firebaseAuth.signOut(); Toast.makeText(this,"आप लॉगआउट हो गए।",Toast.LENGTH_SHORT).show(); showAuthLanding() }.show()
+        }
+        if(BuildConfig.DEBUG) action(support,"App Check जाँच (अस्थायी Debug)") { showAppCheckDiagnostics() }
         refreshSignalLog()
         refreshDashboard()
-        if (firebaseAuth.currentUser == null) showAuthLanding() else setContentView(mainContentView)
+        showIntroThenContinue()
         checkBackupReminder()
+    }
+
+    private fun showIntroThenContinue() {
+        val html = """
+        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+        *{box-sizing:border-box}body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 42%,#102b4d 0%,#070d18 48%,#030509 100%);color:#fff;font-family:Arial}
+        .card{width:90%;max-width:440px;text-align:center;padding:28px 18px;border:1px solid #28558a;border-radius:28px;background:linear-gradient(155deg,#10213a,#070b13);box-shadow:0 0 55px #087bff55;animation:rise .8s ease both}
+        .logo{width:min(62vw,235px);height:auto;filter:drop-shadow(0 0 18px #168cffbb);animation:float 3s ease-in-out infinite}
+        h1{font-size:48px;font-style:italic;letter-spacing:2px;margin:6px 0 10px}h1 span{color:#ed3049}.tag{font-size:12px;font-weight:bold;letter-spacing:2px;color:#d5e5fa}
+        .line{width:112px;height:4px;border-radius:5px;margin:18px auto;background:linear-gradient(90deg,#167dff,#fff,#ed3049)}.sub{font-size:14px;color:#afc2dc}
+        @keyframes float{50%{transform:translateY(-9px)}}@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+        </style></head><body><div class="card"><img class="logo" src="blackai-logo.svg"><h1>BLACK<span>AI</span></h1>
+        <div class="tag">PERSONAL SAFETY • SMART PROTECTION</div><div class="line"></div><div class="sub">आपकी सुरक्षा, हमारी प्राथमिकता</div></div></body></html>
+        """.trimIndent()
+        val splash=android.webkit.WebView(this).apply {
+            settings.javaScriptEnabled=false
+            setBackgroundColor(Color.rgb(3,5,9))
+            loadDataWithBaseURL("file:///android_asset/",html,"text/html","UTF-8",null)
+        }
+        setContentView(splash)
+        dashboardHandler.postDelayed({
+            if(isFinishing || isDestroyed) return@postDelayed
+            splash.animate().alpha(0f).setDuration(500).withEndAction {
+                if(firebaseAuth.currentUser==null) showAuthLanding() else showMainApp()
+            }.start()
+        },3800L)
     }
 
     private fun showAuthLanding() {
