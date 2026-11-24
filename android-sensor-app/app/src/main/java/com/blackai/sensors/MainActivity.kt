@@ -142,7 +142,7 @@ class MainActivity : Activity() {
         action(home,"👤 My Profile","अकाउंट और Logout") { showPage("profile") }
 
         val safety=createPage("safety","🛡️ Safety Tools","सेंसर आधारित प्रयोगात्मक सुरक्षा संकेत")
-        info(safety,"Motion केवल तेज़ गति/झटके जैसा संकेत दर्ज करता है। Voice Detection बोले गए शब्द पहचानने की कोशिश करती है। ये किसी अपराध या आपातकाल की पुष्टि नहीं करते।")
+        info(safety,"BLACKAI Distress Detection: मदद/बचाओ और कुछ खतरे बताने वाले वाक्य पहचानने की कोशिश करता है। एक तेज़ पुकार और कई संकेत—दोनों candidate signal बन सकते हैं। एक ही phrase दोहरने पर TV/Radio जैसी media आवाज़ का शक दर्ज होता है। यह असली media-source पहचान नहीं है; टीवी/रेडियो की आवाज़ को भरोसेमंद तरीके से अलग करना अभी संभव नहीं। कोई automatic call/SMS/location alert नहीं भेजा जाता। Mic चालू होने पर स्थायी notification दिखती है; सुरक्षित परीक्षण करें।")
         action(safety,"Motion Monitoring शुरू करें","स्थायी Notification आवश्यक") {
             if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),41) else startMonitoring()
