@@ -26,6 +26,8 @@ import java.security.SecureRandom
 class EmergencyDispatchService : Service(), LocationListener {
     companion object {
         const val ACTION_TRIGGER = "com.blackai.sensors.action.TRIGGER_PREAUTHORIZED_SOS"
+        const val ACTION_SEND_NOW = "com.blackai.sensors.action.SEND_PREAUTHORIZED_SOS_NOW"
+        const val ACTION_CANCEL = "com.blackai.sensors.action.CANCEL_PREAUTHORIZED_SOS"
         private const val CHANNEL = "blackai_auto_sos"
         private const val NOTIFICATION_ID = 7410
     }
@@ -34,9 +36,30 @@ class EmergencyDispatchService : Service(), LocationListener {
     private var shareRef: com.google.firebase.database.DatabaseReference? = null
     private var expiry = 0L
     private var activeId: String? = null
+    private var countdownTask: Runnable? = null
+    private var textToSpeech: android.speech.tts.TextToSpeech? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action != ACTION_TRIGGER) { stopSelf(); return START_NOT_STICKY }
+        if (intent?.action == ACTION_CANCEL) {
+            countdownTask?.let { handler.removeCallbacks(it) }; countdownTask = null
+            textToSpeech?.stop(); notifyStatus("SOS countdown voice-cancel से रद्द हुआ।"); stopSelf(); return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_TRIGGER) {
+            if (!getSharedPreferences("blackai_emergency", MODE_PRIVATE).getBoolean("hands_free_sos_enabled", false)) { stopSelf(); return START_NOT_STICKY }
+            createChannel(); startForeground(NOTIFICATION_ID, notification("SOS countdown: 15 seconds. Cancel SOS बोलकर रद्द करें।"))
+            textToSpeech = android.speech.tts.TextToSpeech(this) { status ->
+                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                    textToSpeech?.language = java.util.Locale.forLanguageTag("hi-IN")
+                    textToSpeech?.speak("BLACKAI SOS alert. पंद्रह सेकंड में trusted contact को alert भेजा जाएगा। रद्द करने के लिए Cancel SOS बोलें।", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "blackai-sos-countdown")
+                }
+            }
+            countdownTask = Runnable { startService(Intent(this, EmergencyDispatchService::class.java).setAction(ACTION_SEND_NOW)) }
+            handler.postDelayed(countdownTask!!, 15000L)
+            return START_NOT_STICKY
+        }
+        if (intent?.action != ACTION_SEND_NOW) { stopSelf(); return START_NOT_STICKY }
+        countdownTask = null
+        textToSpeech?.speak("SOS alert भेजने का प्रयास हो रहा है।", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "blackai-sos-send")
         val prefs = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
         if (!prefs.getBoolean("hands_free_sos_enabled", false)) { stopSelf(); return START_NOT_STICKY }
         val contacts = org.json.JSONArray(prefs.getString("contacts", "[]"))
