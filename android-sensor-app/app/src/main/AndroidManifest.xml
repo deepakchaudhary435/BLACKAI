@@ -7,6 +7,9 @@
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -22,6 +25,7 @@
         <service android:name=".VoiceMonitorService" android:exported="false" android:foregroundServiceType="microphone" />
         <service android:name=".YamnetSceneMonitorService" android:exported="false" android:foregroundServiceType="microphone" />
         <service android:name=".LiveLocationService" android:exported="false" android:foregroundServiceType="location" />
+        <service android:name=".EmergencyDispatchService" android:exported="false" android:foregroundServiceType="location" />
         <service android:name=".MotionMonitorService" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled motion safety monitoring with a persistent notification; not emergency dispatch." />
         </service>
