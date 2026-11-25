@@ -188,6 +188,7 @@ class MainActivity : Activity() {
                 }.show()
         }
 
+        action(safety,"🚨 Hands-free Automatic SOS सेटअप","पहले trusted contacts और permissions सेट करें; emergency में button नहीं दबाना होगा") { setupHandsFreeSos() }
         action(safety,"YAMNet Audio Scene Check शुरू करें","Voice Detection बंद करके अलग से चलाएँ") {
             AlertDialog.Builder(this)
                 .setTitle("YAMNet Audio Check")
@@ -1747,6 +1748,9 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 90 && grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            setupHandsFreeSos()
+        }
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
         else if (requestCode == 62 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startYamnetSceneMonitoring()
@@ -1818,6 +1822,44 @@ class MainActivity : Activity() {
             }
             .setNegativeButton("रद्द करें", null)
             .show()
+    }
+
+    private fun setupHandsFreeSos() {
+        val contacts = org.json.JSONArray(emergencyPrefs().getString("contacts", "[]"))
+        if (contacts.length() == 0) {
+            AlertDialog.Builder(this).setTitle("Trusted Contact पहले जोड़ें")
+                .setMessage("Automatic SOS केवल आपके पहले से सेव किए गए Trusted Contacts को भेजा जाएगा.")
+                .setPositiveButton("संपर्क जोड़ें") { _, _ -> addTrustedContact() }
+                .setNegativeButton("बंद करें", null).show()
+            return
+        }
+        if (firebaseAuth.currentUser == null) {
+            Toast.makeText(this, "Live location के लिए पहले BLACKAI login करें।", Toast.LENGTH_LONG).show()
+            return
+        }
+        val required = arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE,
+            Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        val missing = required.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) {
+            AlertDialog.Builder(this).setTitle("Automatic SOS permissions")
+                .setMessage("Emergency में trusted contacts को automatic SMS/call और live location भेजने के लिए ये permissions अभी allow करें।")
+                .setNegativeButton("रद्द करें", null)
+                .setPositiveButton("Permissions दें") { _, _ -> requestPermissions(missing.toTypedArray(), 90) }.show()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 90)
+            return
+        }
+        AlertDialog.Builder(this).setTitle("Pre-authorized Hands-free SOS")
+            .setMessage("आपकी सहमति से BLACKAI voice distress phrase पर 15 सेकंड का audible countdown देगा। Cancel SOS बोलकर रोक सकते हैं। Cancel न होने पर saved contacts को SMS, call और अधिकतम 5 घंटे live location भेजने का प्रयास होगा। Android/नेटवर्क call या SMS रोक सकता है; voice detection भी गलत हो सकती है।")
+            .setNegativeButton("अभी नहीं", null)
+            .setPositiveButton("मैं सहमत हूँ — enable करें") { _, _ ->
+                emergencyPrefs().edit().putBoolean("hands_free_sos_enabled", true)
+                    .putBoolean("voice_sos_countdown_enabled", false).apply()
+                Toast.makeText(this, "Hands-free Automatic SOS enabled. अब Voice Detection शुरू करें।", Toast.LENGTH_LONG).show()
+                startVoiceMonitoring()
+            }.show()
     }
 
     private fun startVoiceMonitoring() {
