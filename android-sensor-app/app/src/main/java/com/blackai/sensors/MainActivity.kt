@@ -1851,6 +1851,18 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 90)
             return
         }
+        if (Build.VERSION.SDK_INT >= 29 && checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            AlertDialog.Builder(this).setTitle("Background location अनुमति")
+                .setMessage("Screen बंद होने पर live location चलाने के लिए App Settings में Location permission को ‘Allow all the time’ करें। यह setup emergency से पहले करना होगा।")
+                .setNegativeButton("बाद में", null)
+                .setPositiveButton("Settings खोलें") { _, _ ->
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", packageName, null)))
+                    } catch (_: Exception) {}
+                }.show()
+            return
+        }
         AlertDialog.Builder(this).setTitle("Pre-authorized Hands-free SOS")
             .setMessage("आपकी सहमति से BLACKAI voice distress phrase पर 15 सेकंड का audible countdown देगा। Cancel SOS बोलकर रोक सकते हैं। Cancel न होने पर saved contacts को SMS, call और अधिकतम 5 घंटे live location भेजने का प्रयास होगा। Android/नेटवर्क call या SMS रोक सकता है; voice detection भी गलत हो सकती है।")
             .setNegativeButton("अभी नहीं", null)
