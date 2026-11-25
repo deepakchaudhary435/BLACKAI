@@ -1529,18 +1529,27 @@ class MainActivity : Activity() {
         val running = manager.getRunningServices(Int.MAX_VALUE).map { it.service.className }.toSet()
         val motionOn = MotionMonitorService::class.java.name in running
         val voiceOn = VoiceMonitorService::class.java.name in running
+        val yamnetOn = YamnetSceneMonitorService::class.java.name in running
         val prefs = historyPrefs()
         val motionCount = prefs.getInt("signal_count", 0)
         val voiceCount = prefs.getInt("voice_signal_count", 0)
         val motionTime = prefs.getLong("last_signal_time", 0L)
         val voiceTime = prefs.getLong("voice_last_signal_time", 0L)
+        val yamnetPrefs = getSharedPreferences("blackai_sensor_log", MODE_PRIVATE)
+        val yamnetCategory = yamnetPrefs.getString("yamnet_last_category", "अभी कोई अनुमान नहीं") ?: "अभी कोई अनुमान नहीं"
+        val yamnetExplanation = yamnetPrefs.getString("yamnet_last_explanation", "") ?: ""
+        val yamnetTime = yamnetPrefs.getLong("yamnet_last_time", 0L)
         fun timeLabel(time: Long): String =
             if (time > 0L) DateFormat.getDateTimeInstance().format(Date(time)) else "अभी कोई रिकॉर्ड नहीं"
-        dashboard.text = "Voice Detection: ${if (voiceOn) "चालू" else "बंद"}\n" +
-            "Motion Monitoring: ${if (motionOn) "चालू" else "बंद"}\n\n" +
-            "Voice History: $voiceCount रिकॉर्ड\nआखिरी Voice रिकॉर्ड: ${timeLabel(voiceTime)}\n\n" +
-            "Motion History: $motionCount रिकॉर्ड\nआखिरी Motion संकेत: ${timeLabel(motionTime)}\n\n" +
-            "नोट: चालू/बंद स्थिति Android service के आधार पर दिखाई जाती है। ये प्रयोगात्मक संकेत हैं, आपातकाल या अपराध की पुष्टि नहीं।"
+        dashboard.text = "Voice Detection: ${if (voiceOn) "चालू" else "बंद"}\\n" +
+            "Motion Monitoring: ${if (motionOn) "चालू" else "बंद"}\\n" +
+            "YAMNet Audio Check: ${if (yamnetOn) "चालू" else "बंद"}\\n" +
+            "YAMNet आखिरी अनुमान: $yamnetCategory\\n" +
+            "${if (yamnetExplanation.isNotBlank()) yamnetExplanation + "\\n" else ""}" +
+            "YAMNet समय: ${timeLabel(yamnetTime)}\\n\\n" +
+            "Voice History: $voiceCount रिकॉर्ड\\nआखिरी Voice रिकॉर्ड: ${timeLabel(voiceTime)}\\n\\n" +
+            "Motion History: $motionCount रिकॉर्ड\\nआखिरी Motion संकेत: ${timeLabel(motionTime)}\\n\\n" +
+            "नोट: ये अनुमान प्रयोगात्मक हैं; मीडिया-जैसी ध्वनि मिलने पर भी संभावित मदद के संकेत को अनदेखा न करें। चालू/बंद स्थिति Android service के आधार पर दिखाई जाती है।"
     }
 
     private fun createBackupFile() {
