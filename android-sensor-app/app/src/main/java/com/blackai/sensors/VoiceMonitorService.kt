@@ -150,8 +150,16 @@ class VoiceMonitorService : Service(), RecognitionListener {
             // Consent-based in-app trigger only: MainActivity must be visible and
             // the user must have enabled Voice SOS Countdown. No calls, SMS, or
             // location are transmitted from this service.
-            if (getSharedPreferences("blackai_emergency", MODE_PRIVATE)
-                    .getBoolean("voice_sos_countdown_enabled", false)) {
+            val emergencyPrefs = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
+            if (emergencyPrefs.getBoolean("hands_free_sos_enabled", false)) {
+                val dispatch = Intent(this, EmergencyDispatchService::class.java)
+                    .setAction(EmergencyDispatchService.ACTION_TRIGGER)
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(dispatch) else startService(dispatch)
+                } catch (e: Exception) {
+                    updateNotification("SOS trigger मिला, लेकिन dispatch service शुरू नहीं हो सकी।")
+                }
+            } else if (emergencyPrefs.getBoolean("voice_sos_countdown_enabled", false)) {
                 sendBroadcast(Intent("com.blackai.sensors.VOICE_SOS_CANDIDATE").setPackage(packageName))
             }
             if (repeatedLikeMedia) {
