@@ -68,7 +68,7 @@ class MainActivity : Activity() {
     private var voiceSosReceiverRegistered = false
     private val voiceSosReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == VOICE_SOS_CANDIDATE_ACTION &&
+            if (intent?.action == voiceSosCandidateAction &&
                 getSharedPreferences("blackai_emergency", MODE_PRIVATE).getBoolean("voice_sos_countdown_enabled", false) &&
                 !isFinishing && !isDestroyed) {
                 logEmergencyAction("Voice distress phrase candidate: countdown opened; user confirmation required")
