@@ -45,6 +45,7 @@ class EmergencyDispatchService : Service(), LocationListener {
             textToSpeech?.stop(); notifyStatus("SOS countdown voice-cancel से रद्द हुआ।"); stopSelf(); return START_NOT_STICKY
         }
         if (intent?.action == ACTION_TRIGGER) {
+            if (countdownTask != null || activeId != null) return START_NOT_STICKY
             if (!getSharedPreferences("blackai_emergency", MODE_PRIVATE).getBoolean("hands_free_sos_enabled", false)) { stopSelf(); return START_NOT_STICKY }
             createChannel(); startForeground(NOTIFICATION_ID, notification("SOS countdown: 15 seconds. Cancel SOS बोलकर रद्द करें।"))
             textToSpeech = android.speech.tts.TextToSpeech(this) { status ->
@@ -156,6 +157,9 @@ class EmergencyDispatchService : Service(), LocationListener {
         handler.removeCallbacksAndMessages(null)
         try { manager?.removeUpdates(this) } catch (_: Exception) {}
         if (activeId != null) shareRef?.updateChildren(mapOf("active" to false, "updatedAt" to System.currentTimeMillis()))
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
         super.onDestroy()
     }
     override fun onBind(intent: Intent?): IBinder? = null
