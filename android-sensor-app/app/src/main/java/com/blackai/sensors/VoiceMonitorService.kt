@@ -147,6 +147,13 @@ class VoiceMonitorService : Service(), RecognitionListener {
             }
             // Keep the candidate for review regardless of media playback.
             recordPossibleVoiceAlert(found, false, peakSpeechLevel, sourceHint)
+            // Consent-based in-app trigger only: MainActivity must be visible and
+            // the user must have enabled Voice SOS Countdown. No calls, SMS, or
+            // location are transmitted from this service.
+            if (getSharedPreferences("blackai_emergency", MODE_PRIVATE)
+                    .getBoolean("voice_sos_countdown_enabled", false)) {
+                sendBroadcast(Intent("com.blackai.sensors.VOICE_SOS_CANDIDATE").setPackage(packageName))
+            }
             if (repeatedLikeMedia) {
                 updateNotification("मदद-जैसा phrase दोहराया गया। मीडिया-जैसा संकेत है, लेकिन TV/Radio की पुष्टि नहीं हुई और alert दबाया नहीं गया।")
             }
