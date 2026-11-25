@@ -121,6 +121,20 @@ class VoiceMonitorService : Service(), RecognitionListener {
             "मत मारो", "हाथ मत लगाओ", "यहां से बचाओ", "पुलिस को बुलाओ",
             "help me", "don't hurt me", "let me go", "leave me alone", "call the police"
         ) else emptyList()
+        val cancelMatch = matches.firstOrNull { spoken ->
+            val text = spoken.lowercase(Locale.ROOT)
+            listOf("cancel sos", "sos cancel", "रद्द करो", "रद्द करें", "मैं सुरक्षित हूँ", "मैं सेफ हूँ").any { text.contains(it) }
+        }
+        if (cancelMatch != null) {
+            try {
+                val cancelIntent = Intent(this, EmergencyDispatchService::class.java).setAction(EmergencyDispatchService.ACTION_CANCEL)
+                startService(cancelIntent)
+            } catch (_: Exception) {}
+            updateNotification("Voice cancel phrase मिला; SOS countdown cancel करने का प्रयास।")
+            retryHandler.removeCallbacks(retryAction)
+            retryHandler.postDelayed(retryAction, 500L)
+            return
+        }
         val found = matches.firstOrNull { spoken ->
             val normalized = spoken.lowercase(Locale.ROOT)
             phrases.any { normalized.contains(it.lowercase(Locale.ROOT)) } ||
