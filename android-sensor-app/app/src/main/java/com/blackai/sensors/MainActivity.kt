@@ -5,6 +5,9 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -62,6 +65,18 @@ class MainActivity : Activity() {
     private val locationPermissionRequest = 71
     private val liveLocationPermissionRequest = 72
     private var pendingLiveContactIndex = -1
+    private var voiceSosReceiverRegistered = false
+    private val voiceSosReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == VOICE_SOS_CANDIDATE_ACTION &&
+                getSharedPreferences("blackai_emergency", MODE_PRIVATE).getBoolean("voice_sos_countdown_enabled", false) &&
+                !isFinishing && !isDestroyed) {
+                logEmergencyAction("Voice distress phrase candidate: countdown opened; user confirmation required")
+                startSosCountdown()
+            }
+        }
+    }
+    private val voiceSosCandidateAction = "com.blackai.sensors.VOICE_SOS_CANDIDATE"
     private val firebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val aiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var lastShakeAlertAt = 0L
@@ -161,6 +176,17 @@ class MainActivity : Activity() {
             if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) requestPermissions(permissions,voicePermissionRequest) else startVoiceMonitoring()
         }
         action(safety,"Voice Detection बंद करें") { stopService(Intent(this,VoiceMonitorService::class.java)); status.text="Voice Detection बंद करने का अनुरोध भेजा गया।"; refreshDashboard() }
+        action(safety,"🎙️ Voice SOS Countdown — सेटिंग") {
+            val prefs = getSharedPreferences("blackai_emergency", MODE_PRIVATE)
+            val enabled = prefs.getBoolean("voice_sos_countdown_enabled", false)
+            AlertDialog.Builder(this).setTitle("Voice SOS Countdown")
+                .setMessage("यह विकल्प केवल ऐप स्क्रीन पर खुली होने पर काम करेगा। मदद-जैसा phrase पहचाने जाने पर 15 सेकंड का स्पष्ट countdown दिखेगा। आप cancel कर सकते हैं। Countdown पूरा होने पर भी SMS/कॉल/location स्वतः नहीं भेजी जाएगी—SOS पुष्टि स्क्रीन खुलेगी। आवाज़ पहचान गलत हो सकती है।")
+                .setNegativeButton("रद्द करें", null)
+                .setPositiveButton(if (enabled) "बंद करें" else "मैं समझता/समझती हूँ — चालू करें") { _, _ ->
+                    prefs.edit().putBoolean("voice_sos_countdown_enabled", !enabled).apply()
+                    Toast.makeText(this, if (!enabled) "Voice SOS countdown चालू" else "Voice SOS countdown बंद", Toast.LENGTH_LONG).show()
+                }.show()
+        }
 
         action(safety,"YAMNet Audio Scene Check शुरू करें","Voice Detection बंद करके अलग से चलाएँ") {
             AlertDialog.Builder(this)
@@ -392,6 +418,12 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (!voiceSosReceiverRegistered) {
+            val filter = IntentFilter(voiceSosCandidateAction)
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(voiceSosReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            else registerReceiver(voiceSosReceiver, filter)
+            voiceSosReceiverRegistered = true
+        }
         if (::signalLog.isInitialized) refreshSignalLog()
         dashboardHandler.removeCallbacks(dashboardRefreshTask)
         dashboardHandler.post(dashboardRefreshTask)
@@ -402,6 +434,10 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        if (voiceSosReceiverRegistered) {
+            try { unregisterReceiver(voiceSosReceiver) } catch (_: Exception) {}
+            voiceSosReceiverRegistered = false
+        }
         shakeSensorManager.unregisterListener(shakeListener)
         dashboardHandler.removeCallbacks(dashboardRefreshTask)
         super.onPause()
