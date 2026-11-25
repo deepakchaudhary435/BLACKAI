@@ -20,6 +20,7 @@
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
         <service android:name=".VoiceMonitorService" android:exported="false" android:foregroundServiceType="microphone" />
+        <service android:name=".YamnetSceneMonitorService" android:exported="false" android:foregroundServiceType="microphone" />
         <service android:name=".LiveLocationService" android:exported="false" android:foregroundServiceType="location" />
         <service android:name=".MotionMonitorService" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled motion safety monitoring with a persistent notification; not emergency dispatch." />
