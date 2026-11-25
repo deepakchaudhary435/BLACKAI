@@ -162,6 +162,23 @@ class MainActivity : Activity() {
         }
         action(safety,"Voice Detection बंद करें") { stopService(Intent(this,VoiceMonitorService::class.java)); status.text="Voice Detection बंद करने का अनुरोध भेजा गया।"; refreshDashboard() }
 
+        action(safety,"YAMNet Audio Scene Check शुरू करें","Voice Detection बंद करके अलग से चलाएँ") {
+            AlertDialog.Builder(this)
+                .setTitle("YAMNet Audio Check")
+                .setMessage("यह अलग mic session शुरू करेगा और स्थायी notification दिखाएगा। पहले Voice Detection बंद होगी, क्योंकि Android पर दो सेवाएँ एक mic साझा नहीं कर सकतीं। ऑडियो रिकॉर्ड/अपलोड नहीं होगा; केवल ध्वनि-श्रेणी का अनुमान स्थानीय रूप से दिखेगा।")
+                .setNegativeButton("रद्द करें",null)
+                .setPositiveButton("जारी रखें") { _,_ ->
+                    stopService(Intent(this,VoiceMonitorService::class.java))
+                    if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO,Manifest.permission.POST_NOTIFICATIONS),62)
+                    } else startYamnetSceneMonitoring()
+                }.show()
+        }
+        action(safety,"YAMNet Audio Scene Check बंद करें") {
+            stopService(Intent(this,YamnetSceneMonitorService::class.java))
+            status.text="YAMnet Audio Check बंद करने का अनुरोध भेजा गया।"
+        }
+
         val emergency=createPage("emergency","🚨 Emergency & SOS","आपातकालीन सहायता के लिए जरूरी टूल")
         info(emergency,"SOS Countdown केवल ऐप में दिखाई देने वाला 15 सेकंड का स्थानीय अलर्ट है। पूरा होने पर Emergency SMS की पुष्टि स्क्रीन खुलेगी; संदेश भेजना और कॉल करना आपके नियंत्रण में रहेगा। BLACKAI अपने आप पुलिस या संपर्कों को कॉल/SMS नहीं भेजता।")
         action(emergency,"112 Emergency Call","फोन का Dialer खुलेगा") { confirmEmergencyDial() }
@@ -1687,6 +1704,7 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 41 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startMonitoring()
         else if (requestCode == voicePermissionRequest && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startVoiceMonitoring()
+        else if (requestCode == 62 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startYamnetSceneMonitoring()
         else if (requestCode == 73 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             val index = pendingLiveContactIndex
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -1762,6 +1780,12 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
         status.text = "Voice Detection शुरू करने का अनुरोध भेजा गया।"
         refreshDashboard()
+    }
+
+    private fun startYamnetSceneMonitoring() {
+        val intent=Intent(this,YamnetSceneMonitorService::class.java)
+        if(Build.VERSION.SDK_INT>=26) startForegroundService(intent) else startService(intent)
+        status.text="YAMNet Audio Scene Check शुरू करने का अनुरोध भेजा गया।"
     }
 
     private fun startMonitoring() {
